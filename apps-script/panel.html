@@ -1,0 +1,49 @@
+<!--
+  INNOVATEA — página del panel de resultados.
+  Va dentro del proyecto de Apps Script "INNOVATEA — Panel", en un archivo
+  HTML llamado exactamente `panel`.
+
+  El dibujo lo hace modulos/panel.js del repositorio, cargado desde
+  jsDelivr: así el panel y el formulario comparten estilos y código, y
+  cualquier cambio en el repositorio llega también aquí. Los datos no
+  viajan por internet abierta: los entrega google.script.run, ya
+  autenticado con la cuenta de Google de quien abrió la página.
+-->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<base target="_top">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@main/estilos/innovatea.css">
+<style>html,body{margin:0}</style>
+</head>
+<body>
+
+<div id="innovatea-app">
+  <div class="main wrap">
+    <div class="panel" id="panel"></div>
+  </div>
+</div>
+
+<script type="module">
+import { montar } from "https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@main/modulos/panel.js";
+
+const panel = montar(document.getElementById("panel"), { urlHoja: "<?= urlHoja ?>" });
+
+function cargar() {
+  google.script.run
+    .withSuccessHandler((registros) => panel.actualizar(registros))
+    .withFailureHandler((err) => panel.error(
+      /permis|access/i.test(err.message)
+        ? "su cuenta no tiene acceso a la hoja Form_caracterización. Pida que se la compartan."
+        : err.message))
+    .listarRegistros();
+}
+
+cargar();
+setInterval(cargar, 30000);
+</script>
+
+</body>
+</html>

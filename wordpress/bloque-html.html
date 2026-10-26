@@ -3,11 +3,14 @@
 
   1. Edite la página donde va la encuesta.
   2. Agregue un bloque "HTML personalizado".
-  3. Pegue EXACTAMENTE estas dos líneas.
+  3. Pegue la línea de abajo. Es todo: una sola etiqueta.
   4. Publique.
 
-  No hace falta plugin ni subir archivos: jsDelivr sirve el repositorio de
-  GitHub. Cada push a la rama main actualiza el formulario en el sitio.
+  El formulario aparece exactamente donde esté el bloque. No hace falta
+  plugin, ni FTP, ni subir archivos: la etiqueta carga el controlador, y el
+  controlador carga por su cuenta los estilos, la imagen del banner y los
+  demás módulos desde el mismo repositorio. Cada push a main actualiza el
+  formulario del sitio.
 
   Caché: jsDelivr guarda los archivos de una rama hasta 12 horas. Para ver
   un cambio de inmediato, abra una vez
@@ -18,5 +21,4 @@
   modifica el formulario que está en línea hasta que usted lo decida.
 -->
 
-<div id="innovatea-app"></div>
 <script type="module" src="https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@main/main.js"></script>

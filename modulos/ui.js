@@ -91,7 +91,6 @@ function plantilla(c) {
       </button>
     </div>
     <div id="homeMsg"></div>
-    <p class="adminlink" id="adminLink" hidden>Coordinación del proyecto: <button class="linkbtn" type="button" id="openPanel">ver panel de resultados</button></p>
   </section>
 
   <section id="formView" hidden>
@@ -104,8 +103,6 @@ function plantilla(c) {
     <p>Su respuesta quedó registrada. La información se analizará siempre de forma agregada para orientar acciones de inclusión en Nariño.</p>
     <div class="actions"><button class="btn" type="button" id="again">Volver al inicio</button></div>
   </section>
-
-  <section id="panel" class="panel" hidden></section>
 </div>`;
 }
 
@@ -131,23 +128,15 @@ function cablearInicio() {
   $("#acepto").addEventListener("change", () => { $("#homeMsg").innerHTML = ""; });
   $("#back").addEventListener("click", () => mostrar("home"));
   $("#again").addEventListener("click", () => mostrar("home"));
-  $("#openPanel").addEventListener("click", () => emitir("innovatea:panel"));
-}
-
-/** Muestra el enlace al panel (lo decide main.js según la clave configurada). */
-export function habilitarEnlacePanel() {
-  $("#adminLink").hidden = false;
 }
 
 export function mostrar(vista) {
-  ["home", "formView", "thanks", "panel"].forEach((id) => { $("#" + id).hidden = id !== vista; });
+  ["home", "formView", "thanks"].forEach((id) => { $("#" + id).hidden = id !== vista; });
   const banner = $("#banner");
   if (banner) banner.hidden = vista !== "home" && vista !== "thanks";
   $("#topbar").hidden = vista !== "formView";
   raiz.scrollIntoView({ block: "start" });
 }
-
-export const contenedorPanel = () => $("#panel");
 
 /* =====================================================================
    Renderizado de preguntas

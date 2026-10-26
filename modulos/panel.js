@@ -1,52 +1,46 @@
 /* panel.js — Panel de resultados para la coordinación del proyecto.
-   Lee los envíos desde la hoja de cálculo a través del Apps Script y se
-   refresca solo cada CONFIG.INTERVALO_PANEL_MS. No guarda nada: la fuente
-   de verdad siempre es Google Sheets.
 
-   Aviso de seguridad: CLAVE_PANEL viaja en el JavaScript del sitio, así que
-   solo oculta el panel de un visitante casual. La protección real es
-   limitar quién puede ejecutar el Web App y quién tiene acceso a la hoja. */
+   Este módulo NO se carga en la página pública del formulario. Lo usa la
+   página servida por apps-script/Panel.gs, que es un Web App privado: para
+   abrirlo hay que estar en la lista de personas autorizadas y haber
+   iniciado sesión con Google. Así ningún visitante del sitio puede llegar
+   a las respuestas, y en el repositorio no queda ninguna clave.
 
-import { leerRespuestas, descargarCsv, urlDeLaHoja } from "./exportador.js";
+   Aquí solo se dibuja. Quién trae los datos y cada cuánto lo decide la
+   página que llama a `montar`. */
+
+import { descargarCsv } from "./exportador.js";
 import { aFilas } from "./transformador.js";
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
-let temporizador = null;
 let registros = [];
 
-export function detener() {
-  if (temporizador) { clearInterval(temporizador); temporizador = null; }
-}
-
-export function iniciar(contenedor, config, alVolver) {
+/**
+ * Prepara el panel dentro de un contenedor.
+ * @param {HTMLElement} contenedor
+ * @param {{urlHoja?:string}} opciones
+ * @returns {{actualizar:Function, error:Function}} para alimentarlo con datos
+ */
+export function montar(contenedor, opciones = {}) {
   contenedor.innerHTML = `
     <div class="actions" style="margin-top:0">
-      <button class="btn ghost small" type="button" id="pBack">← Inicio</button>
-      ${urlDeLaHoja(config) ? `<a class="btn small" href="${esc(urlDeLaHoja(config))}" target="_blank" rel="noopener">Abrir hoja de cálculo</a>` : ""}
+      ${opciones.urlHoja ? `<a class="btn small" href="${esc(opciones.urlHoja)}" target="_blank" rel="noopener">Abrir hoja de cálculo</a>` : ""}
       <button class="btn ghost small" type="button" id="pCsv">Descargar respaldo CSV</button>
     </div>
     <h2 style="font-size:1.8rem;margin-top:18px">Panel de resultados</h2>
     <p class="hint" id="pState">Cargando respuestas…</p>
     <div id="pBody"></div>`;
 
-  contenedor.querySelector("#pBack").addEventListener("click", () => { detener(); alVolver(); });
   contenedor.querySelector("#pCsv").addEventListener("click", () => {
     const filas = registros.flatMap((r) => aFilas(r).flatMap((d) => d.filas.map((f) => ({ hoja: d.hoja, ...f }))));
     descargarCsv(filas, `innovatea-respaldo-${new Date().toISOString().slice(0, 10)}.csv`);
   });
 
-  const cargar = async () => {
-    try {
-      registros = await leerRespuestas(config);
-      pintar(contenedor);
-    } catch (e) {
-      contenedor.querySelector("#pState").textContent = "No se pudieron cargar las respuestas: " + e.message;
-    }
+  return {
+    actualizar(nuevos) { registros = nuevos || []; pintar(contenedor); },
+    error(mensaje) { contenedor.querySelector("#pState").textContent = "No se pudieron cargar las respuestas: " + mensaje; },
   };
-  cargar();
-  detener();
-  temporizador = setInterval(cargar, config.INTERVALO_PANEL_MS);
 }
 
 /* ---------- Conteos ---------- */

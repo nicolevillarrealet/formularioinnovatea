@@ -1,5 +1,7 @@
 /* exportador.js — Módulo 4: envío a Google Sheets y descargas.
-   Es el único módulo que habla con la red.
+   Es el único módulo del formulario que habla con la red, y solo escribe:
+   nunca pide datos de vuelta. Leer las respuestas es tarea del panel, que
+   vive en un Web App privado y pasa por la cuenta de Google.
 
    Nota sobre CORS: un Web App de Apps Script no responde a la petición
    OPTIONS de verificación previa, así que el POST se envía como
@@ -89,31 +91,12 @@ export async function reintentarPendientes(config) {
 }
 
 /* =====================================================================
-   Lectura para el panel
-   ===================================================================== */
-
-/** Trae todos los envíos registrados en la hoja, para el panel en vivo. */
-export async function leerRespuestas(config) {
-  if (!config.ENDPOINT_SHEETS) throw new Error("Falta configurar ENDPOINT_SHEETS en config.js.");
-  const url = `${config.ENDPOINT_SHEETS}?accion=listar&clave=${encodeURIComponent(config.CLAVE_PANEL || "")}`;
-  const res = await fetch(url, { redirect: "follow" });
-  if (!res.ok) throw new Error("HTTP " + res.status);
-  const datos = await res.json();
-  if (!datos.ok) throw new Error(datos.error || "No se pudieron leer las respuestas");
-  return datos.registros || [];
-}
-
-/** URL de la hoja de cálculo, para el botón "Abrir en Google Sheets". */
-export function urlDeLaHoja(config) {
-  return config.ID_HOJA ? `https://docs.google.com/spreadsheets/d/${config.ID_HOJA}/edit` : "";
-}
-
-/* =====================================================================
    Descarga de respaldo (CSV)
    ===================================================================== */
 
 /** Respaldo local en CSV de todo lo que se ve en el panel.
-    El Excel de trabajo es la hoja de Google; esto es solo una copia. */
+    El Excel de trabajo es la hoja de Google; esto es solo una copia.
+    Lo usa la página del panel, no el formulario público. */
 export function descargarCsv(filas, nombreArchivo) {
   if (!filas.length) return;
   const columnas = [...new Set(filas.flatMap((f) => Object.keys(f)))];

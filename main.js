@@ -10,14 +10,16 @@
      recolector.js   lee el DOM en el momento del envío
      transformador.js limpia, valida y arma las filas de la hoja
      exportador.js   manda las filas a Google Sheets
-     panel.js        muestra los resultados en vivo */
+
+   La página pública solo escribe. El panel de resultados vive aparte, en
+   un Web App privado de Apps Script protegido con cuenta de Google, para
+   que ningún visitante del sitio pueda leer las respuestas. */
 
 import { CONFIG } from "./config.js";
 import * as ui from "./modulos/ui.js";
 import { extraerDatosDelDOM } from "./modulos/recolector.js";
 import { limpiarDatos } from "./modulos/transformador.js";
 import { enviarASheets, reintentarPendientes, pendientes } from "./modulos/exportador.js";
-import * as panel from "./modulos/panel.js";
 
 /* La base se deduce de la ubicación de este archivo, de modo que los
    estilos y la imagen salen del mismo origen sin configurar nada. */
@@ -36,13 +38,18 @@ function cargarEstilos() {
 }
 
 function contenedor() {
-  let el = document.getElementById("innovatea-app");
-  if (!el) {
-    // Si la página no trae el div, se crea donde esté el script.
-    el = document.createElement("div");
-    el.id = "innovatea-app";
-    (document.currentScript?.parentNode || document.body).append(el);
-  }
+  const existente = document.getElementById("innovatea-app");
+  if (existente) return existente;
+
+  // Basta con la etiqueta <script>: el contenedor se crea justo donde está,
+  // para que el formulario aparezca en el lugar del bloque de WordPress.
+  // (En un módulo document.currentScript es null, así que la etiqueta se
+  // localiza comparando su src con la URL de este propio archivo.)
+  const el = document.createElement("div");
+  el.id = "innovatea-app";
+  const propio = [...document.querySelectorAll("script[src]")].find((s) => s.src === import.meta.url);
+  if (propio && propio.parentNode) propio.parentNode.insertBefore(el, propio);
+  else document.body.append(el);
   return el;
 }
 
@@ -86,18 +93,6 @@ async function alEnviar(rol) {
 }
 
 /* =====================================================================
-   Panel
-   ===================================================================== */
-
-function alAbrirPanel() {
-  if (!config.CLAVE_PANEL) return;
-  const dada = window.prompt("Clave de la coordinación del proyecto:");
-  if (dada !== config.CLAVE_PANEL) return;
-  ui.mostrar("panel");
-  panel.iniciar(ui.contenedorPanel(), config, () => { panel.detener(); ui.mostrar("home"); });
-}
-
-/* =====================================================================
    Arranque
    ===================================================================== */
 
@@ -107,11 +102,8 @@ function iniciar() {
   ui.montar(raiz, config);
   ui.iniciarPantallaBienvenida();
 
-  if (config.CLAVE_PANEL) ui.habilitarEnlacePanel();
-
   raiz.addEventListener("innovatea:rol", (e) => ui.renderizarFormulario(e.detail.rol));
   raiz.addEventListener("innovatea:enviar", (e) => alEnviar(e.detail.rol));
-  raiz.addEventListener("innovatea:panel", () => alAbrirPanel());
 
   // Encuestas que quedaron sin salir por falta de conexión.
   if (pendientes()) {
