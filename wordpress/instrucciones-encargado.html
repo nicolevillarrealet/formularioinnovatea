@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Formulario INNOVATEA — Instrucciones para WordPress</title>
+<style>
+  :root{
+    --bg:#f5f7fc; --surface:#ffffff; --ink:#17213d; --muted:#56607a; --line:#d8deee;
+    --brand:#1f3f9c; --brand-ink:#ffffff; --sun-soft:#fdf0d2; --warn-ink:#8a4a07;
+    --bad:#b3261e; --code-bg:#101a33; --code-ink:#e8edfb;
+  }
+  @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+    --bg:#0e1426; --surface:#161f38; --ink:#e7ecf8; --muted:#a2acc6; --line:#2a3556;
+    --brand:#8fb0ff; --brand-ink:#0d1530; --sun-soft:#3a2f17; --warn-ink:#f0c07a;
+    --bad:#ff8a80; --code-bg:#0a1124; --code-ink:#e8edfb; color-scheme:dark}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:16px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .hoja{max-width:760px;margin:0 auto;padding:40px 16px 72px}
+  h1{font-size:clamp(1.5rem,4.5vw,2rem);line-height:1.2;margin:0 0 6px}
+  h2{font-size:1.15rem;margin:36px 0 10px;color:var(--brand)}
+  p{margin:0 0 12px}
+  .intro{color:var(--muted);margin-bottom:28px}
+
+  .caja{background:var(--surface);border:1.5px solid var(--line);border-radius:12px;padding:18px;margin-bottom:8px}
+  pre{margin:0;background:var(--code-bg);color:var(--code-ink);border-radius:8px;
+    padding:16px;overflow-x:auto;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  .fila{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:14px}
+  button{font:inherit;padding:10px 18px;border-radius:8px;border:1.5px solid var(--brand);
+    background:var(--brand);color:var(--brand-ink);font-weight:700;cursor:pointer}
+  button:hover{opacity:.92}
+  .ok{color:var(--brand);font-weight:700;font-size:.92rem}
+
+  ol{margin:0;padding-left:22px}
+  ol li{margin-bottom:8px}
+  .aviso{background:var(--sun-soft);border-radius:10px;padding:14px 16px;margin-top:14px}
+  .aviso strong{color:var(--warn-ink)}
+  .alto{border-left:4px solid var(--bad);background:var(--surface);border-radius:0 10px 10px 0;
+    padding:14px 16px;margin:14px 0}
+  .alto strong{color:var(--bad)}
+  code{background:var(--surface);border:1px solid var(--line);border-radius:5px;
+    padding:1px 6px;font:13.5px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  footer{margin-top:44px;padding-top:18px;border-top:1px solid var(--line);
+    color:var(--muted);font-size:.88rem}
+</style>
+</head>
+<body>
+<div class="hoja">
+
+  <h1>Formulario INNOVATEA en WordPress</h1>
+  <p class="intro">Encuestas de caracterización para rectores y docentes de básica primaria.
+     Instrucciones para publicarlo en <strong>tic.narino.gov.co/innovatea</strong>.</p>
+
+  <div class="alto">
+    <strong>Antes de publicar:</strong> esta versión todavía no tiene conectada la hoja de
+    cálculo, así que al pulsar «Enviar» aparece un mensaje de error. Péguelo en una página en
+    <strong>borrador</strong> para revisar cómo se ve. Cuando le avisen de la versión definitiva,
+    solo hay que cambiar el número de versión en esta misma línea y publicar.
+  </div>
+
+  <h2>El código</h2>
+  <div class="caja">
+    <pre id="codigo">&lt;script type="module" src="https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@v1.0.0/main.js"&gt;&lt;/script&gt;</pre>
+    <div class="fila">
+      <button type="button" id="copiar">Copiar código</button>
+      <span class="ok" id="aviso" hidden>Copiado</span>
+    </div>
+  </div>
+
+  <h2>Dónde pegarlo</h2>
+  <ol>
+    <li>Entrar a WordPress con una cuenta de <strong>Administrador</strong>.</li>
+    <li>Editar la página <em>Innovatea</em>.</li>
+    <li>Colocar el cursor <strong>debajo del texto de bienvenida</strong> y pulsar el botón
+        <code>+</code>.</li>
+    <li>Buscar y elegir el bloque <strong>HTML personalizado</strong>
+        (<em>Custom HTML</em>). No sirve un bloque de párrafo.</li>
+    <li>Pegar la línea de arriba dentro del bloque.</li>
+    <li>Guardar como borrador y revisar con «Vista previa».</li>
+  </ol>
+
+  <p>El formulario aparece exactamente donde quede el bloque. No hay que subir archivos al
+     servidor, ni instalar plugins, ni tocar el tema.</p>
+
+  <h2>Si algo no funciona</h2>
+
+  <div class="aviso">
+    <strong>El código se ve como texto en la página.</strong>
+    Se pegó en un bloque de párrafo. Hay que borrarlo y usar el bloque
+    <em>HTML personalizado</em>.
+  </div>
+
+  <div class="aviso">
+    <strong>La línea desaparece al guardar.</strong>
+    Es el permiso <code>unfiltered_html</code> de WordPress: la cuenta no tiene nivel para
+    insertar scripts. Debe pegarlo un Administrador. En instalaciones multisitio solo puede
+    hacerlo el superadministrador; en ese caso, usar un plugin de fragmentos de código como
+    WPCode.
+  </div>
+
+  <div class="aviso">
+    <strong>No aparece nada donde va el bloque.</strong>
+    Suele ser un plugin de caché o de optimización de JavaScript que está alterando la
+    etiqueta. Hay que excluir <code>cdn.jsdelivr.net</code> de la combinación y el aplazamiento
+    de scripts, y vaciar la caché del sitio.
+  </div>
+
+  <h2>Para actualizar más adelante</h2>
+  <p>Cada publicación nueva cambia el número de versión. Actualizar significa reemplazar
+     <code>@v1.0.0</code> por el número que le indiquen, por ejemplo <code>@v1.0.1</code>, en esa
+     misma línea. Nada más.</p>
+  <p>Ese número es importante: evita que a quien ya visitó la página le siga apareciendo la
+     versión antigua guardada en su navegador.</p>
+
+  <footer>
+    Proyecto INNOVATEA: Voces diversas, futuros posibles · Gobernación de Nariño.<br>
+    Código fuente: github.com/transformaciondigital2026/formularioinnovatea
+  </footer>
+
+</div>
+
+<script>
+  const boton = document.getElementById("copiar");
+  const aviso = document.getElementById("aviso");
+  boton.addEventListener("click", async () => {
+    const texto = document.getElementById("codigo").textContent;
+    try {
+      await navigator.clipboard.writeText(texto);
+    } catch (e) {
+      // Navegadores que no permiten el portapapeles: se selecciona para copiar a mano.
+      const r = document.createRange();
+      r.selectNodeContents(document.getElementById("codigo"));
+      const s = getSelection();
+      s.removeAllRanges();
+      s.addRange(r);
+    }
+    aviso.hidden = false;
+    setTimeout(() => { aviso.hidden = true; }, 2500);
+  });
+</script>
+
+</body>
+</html>
