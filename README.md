@@ -16,20 +16,21 @@ Sheets.
 En la página donde va la encuesta, agregue un bloque **HTML personalizado** y pegue esto:
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@main/main.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@v1.0.0/main.js"></script>
 ```
 
 Eso es todo. El formulario se monta justo donde esté el bloque; la etiqueta carga el
-controlador y el controlador trae por su cuenta los estilos, la imagen del banner y los demás
-módulos. No hace falta plugin, ni FTP, ni subir archivos al hosting, y cada `push` a `main`
-actualiza el formulario del sitio.
+controlador y el controlador trae por su cuenta los estilos y los demás módulos. No hace falta
+plugin, ni FTP, ni subir archivos al hosting.
 
-> **En producción conviene fijar una versión.** Cambie `@main` por una etiqueta de git
-> (`@v1.0.0`, por ejemplo). Así un commit nuevo nunca altera el formulario que está en línea
-> hasta que usted publique otra etiqueta.
->
-> jsDelivr guarda los archivos de una rama hasta 12 horas. Para forzar un cambio, abra una vez
-> `https://purge.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@main/main.js`.
+**Para publicar un cambio:** `git tag v1.0.1 && git push origin v1.0.1`, y cambie el número en
+la línea de WordPress.
+
+> **Por qué una etiqueta y no `@main`.** jsDelivr le dice al navegador que guarde estos archivos
+> durante 7 días. Con `@main`, una corrección tardaría hasta una semana en llegarle a quien ya
+> hubiera abierto la página, y purgar la caché de jsDelivr limpia la del CDN pero no la del
+> visitante. Con una etiqueta, cada publicación es una dirección distinta: el cambio se ve de
+> inmediato y nadie se queda con la versión vieja. `@main` sirve para probar, no para producción.
 
 ---
 

@@ -8,17 +8,21 @@
 
   El formulario aparece exactamente donde esté el bloque. No hace falta
   plugin, ni FTP, ni subir archivos: la etiqueta carga el controlador, y el
-  controlador carga por su cuenta los estilos, la imagen del banner y los
-  demás módulos desde el mismo repositorio. Cada push a main actualiza el
-  formulario del sitio.
+  controlador carga por su cuenta los estilos y los demás módulos.
 
-  Caché: jsDelivr guarda los archivos de una rama hasta 12 horas. Para ver
-  un cambio de inmediato, abra una vez
-  https://purge.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@main/main.js
+  POR QUÉ LLEVA UN NÚMERO DE VERSIÓN Y NO @main
+  jsDelivr le dice al navegador que guarde estos archivos durante 7 días.
+  Con @main, una corrección tardaría hasta una semana en llegarle a quien
+  ya hubiera abierto la página, y purgar la caché de jsDelivr no limpia la
+  del visitante. Con una etiqueta, cada publicación es una dirección
+  distinta: el cambio se ve de inmediato y nadie se queda con la versión
+  vieja.
 
-  Versión fija (recomendado en producción): reemplace @main por una
-  etiqueta de git, por ejemplo @v1.0.0. Así un cambio en main nunca
-  modifica el formulario que está en línea hasta que usted lo decida.
+  PARA PUBLICAR UN CAMBIO
+  1. git tag v1.0.1 && git push origin v1.0.1
+  2. Cambie el número en esta línea dentro de WordPress.
+
+  (@main sirve para pruebas, pero no debe quedar en producción.)
 -->
 
-<script type="module" src="https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@main/main.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@v1.0.0/main.js"></script>
