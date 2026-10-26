@@ -36,30 +36,17 @@ const emitir = (nombre, detalle) => raiz.dispatchEvent(new CustomEvent(nombre, {
 export function montar(contenedor, config) {
   raiz = contenedor;
   ajustes = config;
-  raiz.innerHTML = plantilla(config);
+  raiz.innerHTML = plantilla();
   cablearInicio();
   return raiz;
 }
 
-function plantilla(c) {
-  const banner = c.MOSTRAR_BANNER ? `
-<header class="banner" id="banner">
-  <img class="hero" src="${esc(c.BASE + "assets/banner-innovatea.jpg")}" width="1400" height="933"
-       alt="INNOVATEA: Voces diversas, futuros posibles. Un niño y una niña con audífonos trabajan juntos en un portátil, rodeados de íconos de tecnología, educación e inclusión.">
-  <div class="rainbow" aria-hidden="true"></div>
-  <div class="wrap">
-    <div class="eyebrow">Gobernación de Nariño · Caracterización 2026</div>
-    <h1 class="welcome">¡Bienvenidos a INNOVATEA!</h1>
-    <div class="lema">Cada mente cuenta, cada historia importa.</div>
-    <p>En Nariño creemos que reconocer las diferentes maneras de aprender, sentir y comprender el mundo es el primer paso para construir una educación verdaderamente inclusiva.</p>
-    <p>Desde el proyecto <strong>INNOVATEA: Voces diversas, futuros posibles</strong>, invitamos a los rectores y docentes de las instituciones educativas de básica primaria a participar en esta caracterización, que busca conocer cuántos niños y niñas autistas se encuentran matriculados y cuáles son sus principales necesidades de apoyo educativo.</p>
-    <p>Su participación permitirá generar información para orientar acciones que fortalezcan la inclusión y el reconocimiento de la neurodiversidad en nuestras aulas.</p>
-    <p class="cierre">Porque cada respuesta cuenta y cada niño merece ser reconocido.</p>
-    <p class="legal">Tratamiento de datos: la información se usa solo para la caracterización del proyecto INNOVATEA, se presenta siempre agregada y no incluye nombres ni documentos de estudiantes (Ley 1581 de 2012).</p>
-  </div>
-</header>` : "";
-
-  return `${banner}
+/* La página de WordPress ya trae la imagen, el título de bienvenida y el
+   texto de presentación del proyecto, así que el bloque empieza
+   directamente en la elección de encuesta: repetirlos sería duplicar lo
+   que el visitante acaba de leer. */
+function plantilla() {
+  return `
 <div id="topbar" class="topbar" hidden>
   <div class="wrap">
     <button class="btn ghost small" id="back" type="button">← Salir</button>
@@ -71,7 +58,7 @@ function plantilla(c) {
 
 <div class="main wrap">
   <section id="home">
-    <h2 style="font-size:1.5rem">Elija la encuesta que le corresponde</h2>
+    <h2 class="titulo">Elija la encuesta que le corresponde</h2>
     <label class="consent" for="acepto">
       <input type="checkbox" id="acepto">
       <span>Autorizo el tratamiento de mis datos personales (nombre y contacto) y de la información que registre en esta encuesta, para la caracterización y el seguimiento del proyecto INNOVATEA, en los términos de la Ley 1581 de 2012. Mis datos solo serán conocidos por la coordinación del proyecto y no aparecerán en los informes. No registraré nombres ni documentos de estudiantes.</span>
@@ -132,8 +119,6 @@ function cablearInicio() {
 
 export function mostrar(vista) {
   ["home", "formView", "thanks"].forEach((id) => { $("#" + id).hidden = id !== vista; });
-  const banner = $("#banner");
-  if (banner) banner.hidden = vista !== "home" && vista !== "thanks";
   $("#topbar").hidden = vista !== "formView";
   raiz.scrollIntoView({ block: "start" });
 }
@@ -349,11 +334,11 @@ export function renderizarFormulario(rol) {
 
   if (rol === "rectores") {
     $("#formTitle").textContent = "Rectores";
-    $("#formIntro").innerHTML = `<h2 style="font-size:1.6rem;margin-top:8px">${esc(RECTORES.title)}</h2><p class="hint">Responda con la información institucional disponible. Las cantidades se escriben en números enteros.</p>`;
+    $("#formIntro").innerHTML = `<h2 class="titulo">${esc(RECTORES.title)}</h2><p class="hint">Responda con la información institucional disponible. Las cantidades se escriben en números enteros.</p>`;
     RECTORES.sections.forEach((s) => f.append(seccion(s, A, "", "general", null)));
   } else {
     $("#formTitle").textContent = "Docentes";
-    $("#formIntro").innerHTML = `<h2 style="font-size:1.6rem;margin-top:8px">Encuesta para docentes</h2><p class="hint">Primero describa su grupo. Luego diligencie una ficha (secciones 2 a 4) por cada estudiante con autismo u otra condición del neurodesarrollo reportada, sin nombres ni documentos. Al final responda las secciones 5 y 6.</p>`;
+    $("#formIntro").innerHTML = `<h2 class="titulo">Encuesta para docentes</h2><p class="hint">Primero describa su grupo. Luego diligencie una ficha (secciones 2 a 4) por cada estudiante con autismo u otra condición del neurodesarrollo reportada, sin nombres ni documentos. Al final responda las secciones 5 y 6.</p>`;
     f.append(seccion(DOC_ID, A, "", "general", null));
     f.append(seccion(DOC_GRUPO, A, "", "general", null));
 

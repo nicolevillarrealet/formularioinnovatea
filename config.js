@@ -15,12 +15,8 @@ export const CONFIG = {
      Se obtiene implementando apps-script/Codigo.gs. Ver el README. */
   ENDPOINT_SHEETS: "",
 
-  /* El banner de bienvenida se puede apagar si la página de WordPress ya
-     tiene su propia cabecera con el mismo contenido. */
-  MOSTRAR_BANNER: true,
-
-  /* Deje vacío para que los estilos y la imagen se carguen desde el mismo
-     sitio donde está main.js (jsDelivr). Solo se cambia si aloja los
-     archivos en otra ruta. */
+  /* Deje vacío para que la hoja de estilos se cargue desde el mismo sitio
+     donde está main.js (jsDelivr). Solo se cambia si aloja los archivos
+     en otra ruta. */
   BASE: "",
 };
