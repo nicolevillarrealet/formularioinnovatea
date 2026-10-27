@@ -16,14 +16,14 @@ Sheets.
 En la página donde va la encuesta, agregue un bloque **HTML personalizado** y pegue esto:
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@v1.0.0/main.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@v1.3.0/main.js"></script>
 ```
 
 Eso es todo. El formulario se monta justo donde esté el bloque; la etiqueta carga el
 controlador y el controlador trae por su cuenta los estilos y los demás módulos. No hace falta
 plugin, ni FTP, ni subir archivos al hosting.
 
-**Para publicar un cambio:** `git tag v1.0.1 && git push origin v1.0.1`, y cambie el número en
+**Para publicar un cambio:** `git tag v1.3.1 && git push origin v1.3.1`, y cambie el número en
 la línea de WordPress.
 
 > **Por qué una etiqueta y no `@main`.** jsDelivr le dice al navegador que guarde estos archivos
@@ -56,13 +56,32 @@ Las dos piezas son proyectos de Apps Script distintos, con implementaciones dist
 está expuesto a internet no tiene ninguna función que devuelva datos: aunque alguien encuentre
 su URL, no hay nada que pueda consultar.
 
-**Qué protege al endpoint público.** Solo acepta la acción `registrar`, solo escribe en las tres
+**Qué protege al endpoint público.** Solo acepta las acciones `pedirCodigo`, `verificarCodigo` y `registrar`, solo escribe en las tres
 pestañas de la lista blanca (`Rectores`, `Docentes`, `Estudiantes`), rechaza cuerpos de más de
 300 000 caracteres y más de 120 filas por envío, recorta cada celda a 2 000 caracteres, frena
 las ráfagas a 60 envíos por minuto y neutraliza el texto que empiece por `=`, `+`, `-` o `@`
-para que Excel no lo ejecute como fórmula. Lo peor que puede hacer un atacante es mandar
-encuestas falsas, que se borran de la hoja. No puede leer, ni modificar, ni borrar, ni tocar
+para que Excel no lo ejecute como fórmula. No puede leer, ni modificar, ni borrar, ni tocar
 otra pestaña.
+
+**Verificación del correo.** Antes de elegir la encuesta, quien responde escribe su correo y
+recibe un código de 6 dígitos que envía el propio Apps Script (`MailApp`, desde la cuenta
+institucional). Quien decide es `Codigo.gs`, no el navegador:
+
+1. Comprueba el código y entrega un **pase firmado** con el correo (HMAC con una clave que solo
+   vive en las propiedades del script). Vale 72 horas: quien deja la encuesta a medias puede
+   volver sin pedir otro código.
+2. Al enviar, lee el correo del pase —no el que diga el navegador— y lo escribe en la columna
+   `correo_verificado`. Un pase alterado o vencido se rechaza.
+3. **Una encuesta por correo:** cada correo puede enviar una de rector y una de docente. La
+   pestaña `_correos` lleva la cuenta; si el correo ya envió esa encuesta, su tarjeta aparece
+   bloqueada desde el inicio y el servidor rechaza un segundo envío.
+4. **Frenos contra abuso:** un código por correo cada minuto y máximo 5 al día; máximo 300 por
+   hora en total; cada código vence a los 15 minutos y admite 5 intentos. Workspace permite unos
+   1 500 correos al día.
+
+Cualquier correo puede pedir un código: esto prueba quién respondió, no restringe quién puede
+hacerlo. La pestaña `_envios` registra cómo se verificó cada envío (`correo` o `sin
+verificación`) y cuántos minutos pasaron desde la verificación.
 
 **Qué protege al panel.** Se implementa con *Ejecutar como: el usuario que accede*, así que abre
 la hoja con los permisos de quien entra. Quien no esté compartido en
@@ -85,6 +104,18 @@ hoja de Google. El repositorio solo contiene la forma del formulario.
    - Ejecutar como: **Yo**
    - Quién tiene acceso: **Cualquier usuario**
 4. Copie la URL que termina en `/exec`.
+
+#### Activar la verificación por correo
+
+1. Pegue el `Codigo.gs` nuevo y vuelva a implementar (nueva versión). Google pedirá autorizar el
+   **envío de correos**: es para los códigos. Use la cuenta institucional (Workspace).
+2. Publique el formulario nuevo (`VERIFICAR_CORREO: true` en `config.js`, ya viene así).
+3. Cuando el formulario nuevo esté en línea, haga la verificación **obligatoria**: en el
+   proyecto de `Codigo.gs`, **Configuración del proyecto** (engranaje) → **Propiedades de la
+   secuencia de comandos** → **Agregar propiedad** → `EXIGIR_CORREO` = `si`, y guarde.
+
+Mientras `EXIGIR_CORREO` no exista, el servidor también acepta envíos sin verificar (los de la
+página anterior) y los marca «sin verificación». Por eso va en el paso 3 y no antes.
 
 ### 2. El repositorio
 
@@ -123,12 +154,32 @@ Cada envío viaja en un solo POST y se reparte en tres pestañas:
 |---|---|---|
 | `Rectores` | encuesta de rector | — |
 | `Docentes` | encuesta de docente | — |
-| `Estudiantes` | ficha de estudiante | `id_envio` de la pestaña `Docentes` |
+| `Estudiantes` | ficha de caracterización (estudiante con autismo) | `id_envio` de la pestaña `Docentes` |
 | `_envios` | envío completo en JSON | uso interno del panel |
 
 Las tres primeras son las legibles: se descargan con **Archivo → Descargar → Microsoft Excel
 (.xlsx)** y ya vienen con los enunciados completos como encabezado. La pestaña `_envios` es la
 que consulta el panel y no hace falta mirarla.
+
+### Formato de las columnas (listo para tabular)
+
+| Tipo de pregunta | Cómo queda en la hoja |
+|---|---|
+| Una sola opción | una columna con el texto de la opción |
+| Número | una columna con el número, o «Información no disponible» |
+| Varias opciones | **una columna por opción**, `13. ¿Pregunta? [Opción]`, con `1` si la marcó y `0` si no |
+| Pregunta que no aplicaba | celda vacía (distinto de `0`, que es «aplicaba y no la marcó») |
+
+Así se cuenta con `SUMA` o `CONTAR.SI` y se filtra directamente, sin separar textos.
+
+**Numeración.** Rectores: 1 a 28. Docentes: 1 a 22, en el orden en que se responden. Ficha de
+caracterización: F1 a F25, aparte, porque se repite una vez por estudiante con autismo.
+
+**Reorganizar las pestañas.** Si la hoja tiene filas de versiones anteriores (respuestas
+múltiples en una sola celda, numeración vieja), abra el panel y pulse **Reorganizar hojas con el
+formato actual**. Rearma `Rectores`, `Docentes` y `Estudiantes` desde `_envios` con el formato de
+arriba. No borra nada: las pestañas anteriores quedan renombradas como «… respaldo fecha». Hace
+falta permiso de edición en la hoja y haber actualizado `Panel.gs` (paso 3) con la versión nueva.
 
 «Tiempo real» aquí significa que la fila aparece en la hoja en el mismo momento del envío —quien
 tenga la hoja abierta la ve llegar— y que el panel se refresca cada 30 segundos.
@@ -150,12 +201,13 @@ formularioinnovatea/
 ├── main.js                 Controlador: el único archivo que enlaza WordPress
 ├── modulos/
 │   ├── catalogos.js        Municipios, EPS, grados, directorio institucional
-│   ├── preguntas.js        Las 74 preguntas de los dos formularios
+│   ├── preguntas.js        Preguntas: rectores 1–28, docentes 1–22, ficha F1–F25
 │   ├── reglas.js           Coherencia entre respuestas (límites y opciones)
 │   ├── ui.js               Módulo 1 · renderizado e interacción
 │   ├── recolector.js       Módulo 2 · lectura del DOM al enviar
 │   ├── transformador.js    Módulo 3 · limpieza, validación y filas
 │   ├── exportador.js       Módulo 4 · envío a Sheets, cola y respaldo CSV
+│   ├── acceso.js           Verificación del correo con un código de 6 dígitos
 │   └── panel.js            Dibujo del panel (solo lo usa el Web App privado)
 ├── estilos/innovatea.css   Todo acotado a #innovatea-app
 ├── assets/                 Imagen del banner
@@ -186,12 +238,19 @@ a la hoja: el transformador descarta las respuestas de preguntas no visibles.
 
 **Coherencia entre respuestas.** Las reglas están en `modulos/reglas.js` y no son avisos: una
 respuesta imposible (más estudiantes con autismo que matriculados, más niñas que estudiantes con
-autismo, marcar «Ninguna» después de reportar casos, más fichas que estudiantes a cargo…) muestra
+autismo, marcar «Ninguna» después de reportar casos…) muestra
 el motivo en rojo y el formulario no avanza hasta corregirla. Las opciones que ya no aplican se
 deshabilitan, las que se deducen de respuestas anteriores se marcan solas, y `transformador.js`
 vuelve a revisar todo antes de enviar. Las cantidades pequeñas se responden con botones del 0 al
 10; «11 o más» abre el campo para escribir, siempre dentro del máximo que permitan las respuestas
-anteriores.
+anteriores. Una pregunta que queda resuelta por respuestas anteriores (una sola opción posible) se
+responde sola, se salta y aparece en el resumen como «automática».
+
+**Fichas de caracterización.** Solo para estudiantes con autismo: se crean solas, una por cada
+estudiante que el docente reportó, y van al final de la encuesta. Cada ficha empieza con una
+pantalla «Estudiante N de M» que muestra el estado de todas y permite volver a cualquiera. Si el
+docente cambia el número de estudiantes, las fichas que sobran se ocultan pero sus respuestas se
+conservan.
 
 **Datos personales.** El formulario pide nombre y contacto de quien responde (con autorización
 expresa, Ley 1581 de 2012) y ningún dato identificable de los estudiantes. La lista de quién ha

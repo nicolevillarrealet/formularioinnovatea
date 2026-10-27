@@ -15,6 +15,12 @@ export const CONFIG = {
      Se obtiene implementando apps-script/Codigo.gs. Ver el README. */
   ENDPOINT_SHEETS: "https://script.google.com/macros/s/AKfycbzALRubDZJ2PuiKzKw2MQdtZCyfJo8c-REMApMB4mBIzy-u_Mc73FTQENYndU8PDlax5A/exec",
 
+  /* Verificar el correo de quien responde con un código de 6 dígitos
+     antes de la encuesta. Los códigos los envía el Apps Script (MailApp);
+     aquí no va ninguna clave. Para que el servidor además RECHACE envíos
+     sin verificar, ver EXIGIR_CORREO en el README. */
+  VERIFICAR_CORREO: true,
+
   /* Deje vacío para que la hoja de estilos se cargue desde el mismo sitio
      donde está main.js (jsDelivr). Solo se cambia si aloja los archivos
      en otra ruta. */

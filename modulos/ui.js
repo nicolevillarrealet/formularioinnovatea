@@ -13,12 +13,23 @@
    En las preguntas de una sola opción, tocar la respuesta ya avanza.
    Las preguntas condicionales que no aplican se saltan solas.
 
-   En docentes, las fichas de estudiante (secciones 2 a 4) van al final,
-   después de las preguntas sobre el docente, y las abre una pantalla que
-   explica que esa parte es obligatoria. Cada ficha es una serie de
-   pantallas que termina en "Ficha completa", donde se agrega la siguiente.
-   La primera ficha se crea sola en cuanto el docente reporta estudiantes,
-   y hay que llenar una por cada estudiante con autismo de la pregunta 6.
+   En docentes, las FICHAS DE CARACTERIZACIÓN van al final, después de
+   las preguntas sobre el docente, y las abre una pantalla que explica que
+   esa parte es obligatoria. Son solo para estudiantes con autismo y se
+   crean solas: tantas como estudiantes con autismo reportó el docente.
+   Cada ficha empieza con una pantalla "Estudiante N de M" que muestra el
+   estado de todas las fichas y permite volver a cualquiera.
+
+   Las respuestas de las fichas viven en S y nunca se borran al cambiar el
+   número de estudiantes: si el docente baja de 3 a 2, la tercera ficha se
+   oculta (y no se envía) pero sus datos siguen ahí si vuelve a subir.
+
+   Preguntas que quedan resueltas por respuestas anteriores (una sola
+   opción posible, o un número cuyo mínimo y máximo coinciden) se
+   responden solas y se saltan; aparecen en el resumen como automáticas.
+
+   Una vez el usuario llega al resumen final, desde cualquier pregunta
+   puede volver a él con "Volver al resumen", sin recorrer lo ya resuelto.
 
    COHERENCIA: las reglas de reglas.js no son avisos. Una respuesta que no
    cuadra con las anteriores (más casos que matriculados, "Ninguna" después
@@ -32,7 +43,7 @@
 import {
   RECTORES, DOC_ID, DOC_GRUPO, DOC_ESTUDIANTE, DOC_CIERRE, INSTITUCIONES,
 } from "./preguntas.js";
-import { conChips, limites, maxSeleccion, opcionesDe, errorDe, maxFichas, minFichas } from "./reglas.js";
+import { conChips, limites, maxSeleccion, opcionesDe, errorDe, numFichas, preguntaFichas } from "./reglas.js";
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -49,6 +60,9 @@ let actual = null;        // pantalla visible
 let pantallaFinal = null; // "Revise y envíe"
 let finTransicion = null; // cierra de golpe una transición en curso
 let ultimoToque = 0;      // para avanzar solo cuando se toca, no con el teclado
+let vioResumen = false;   // ya llegó al resumen final al menos una vez
+let fichasPintadas = -1;  // cuántas fichas hay dibujadas ahora mismo
+const memoria = {};       // copia del borrador por si el navegador no deja guardar
 
 const $ = (sel) => raiz.querySelector(sel);
 const emitir = (nombre, detalle) => raiz.dispatchEvent(new CustomEvent(nombre, { detail: detalle || {} }));
@@ -88,6 +102,7 @@ function plantilla() {
       <input type="checkbox" id="acepto">
       <span>Autorizo el tratamiento de mis datos personales (nombre y contacto) y de la información que registre en esta encuesta, para la caracterización y el seguimiento del proyecto INNOVATEA, en los términos de la Ley 1581 de 2012. Mis datos solo serán conocidos por la coordinación del proyecto y no aparecerán en los informes. No registraré nombres ni documentos de estudiantes.</span>
     </label>
+    <div class="acceso" id="acceso" hidden></div>
     <div class="roles">
       <button class="role" type="button" data-form="rectores">
         <small>Formulario 1 · 28 preguntas · 10 min aprox.</small>
@@ -96,7 +111,7 @@ function plantilla() {
         <span class="go">Comenzar →</span>
       </button>
       <button class="role" type="button" data-form="docentes">
-        <small>Formulario 2 · 6 secciones · 15 min aprox.</small>
+        <small>Formulario 2 · 22 preguntas + una ficha por estudiante con autismo</small>
         <h3>Docentes de básica primaria</h3>
         <span>Su grupo, su práctica pedagógica y formación, y la caracterización de cada estudiante con autismo.</span>
         <span class="go">Comenzar →</span>
@@ -340,8 +355,11 @@ function selectorNumero(q, store, id, alElegir) {
     cambio();
   });
 
-  ctl._refrescar = (c) => {
+  ctl._refrescar = (c, aplicaPregunta) => {
     const { min, max } = limites(q, store, c);
+    // Un solo valor posible: se responde solo y la pantalla se salta.
+    const fija = aplicaPregunta && q.t !== "numna" && max != null && min === max;
+    if (fija) { store[q.id] = min; modoMas = false; }
     tope = max == null ? 10 : Math.min(max, 10);
     const hayMas = max == null || max > 10;
     const k = `${min}|${tope}|${hayMas}`;
@@ -369,6 +387,7 @@ function selectorNumero(q, store, id, alElegir) {
     mas.hidden = !modoMas;
     if (modoMas && document.activeElement !== inp) inp.value = typeof v === "number" ? v : "";
     oculto.value = v ?? "";
+    return fija;
   };
   return ctl;
 }
@@ -386,7 +405,9 @@ function aplicarReglas() {
   registro.forEach((r) => {
     const { q, store: s } = r;
     const c = ctx(r);
-    if (r.el._refrescar) r.el._refrescar(c);
+    const activa = visible(q, s) && (r.ambito !== "estudiante" || r.indice < numFichas(A));
+    r.fija = false;
+    if (r.el._refrescar) r.fija = !!r.el._refrescar(c, activa);
     if (q.t !== "radio" && q.t !== "multi") return;
 
     const o = opcionesDe(q, s, c);
@@ -421,6 +442,11 @@ function aplicarReglas() {
       inp.closest(".opt").classList.toggle("fijada", fijada);
     });
 
+    // Sin nada que elegir (todo marcado o vetado): la pantalla se salta.
+    r.fija = !!o && activa && (q.t === "radio"
+      ? forzar.size === 1
+      : q.o.every((x) => forzar.has(x) || vetar.has(x)));
+
     const partes = [];
     if (forzar.size) partes.push(`Se marcó según sus respuestas anteriores: ${[...forzar].join(", ")}.`);
     if (vetar.size) partes.push("Las opciones en gris no aplican según sus respuestas anteriores.");
@@ -450,14 +476,15 @@ function mostrarErrores() {
 
 function campo(q, store, prefijo, ambito, indice) {
   const id = prefijo + q.id;
-  const enLinea = ["select", "num", "inst", "numna", "text"].includes(q.t);
+  const enLinea = ["select", "num", "inst", "numna", "text", "largo"].includes(q.t);
   const fs = document.createElement(enLinea ? "div" : "fieldset");
   fs.className = "q";
   fs.id = "q-" + id;
 
   const etiqueta = `<span class="n">${q.n}</span><span>${esc(q.l)}` +
     `${q.opt ? ' <span class="multi-note">(opcional)</span>' : ""}` +
-    `${q.t === "multi" ? ' <span class="multi-note">(puede marcar varias)</span>' : ""}</span>`;
+    `${q.t === "multi" ? ' <span class="multi-note">(puede marcar varias)</span>' : ""}` +
+    `${q.ayuda ? `<span class="q-ayuda">${esc(q.ayuda)}</span>` : ""}</span>`;
   fs.innerHTML = fs.tagName === "FIELDSET"
     ? `<legend tabindex="-1">${etiqueta}</legend>`
     : `<label class="lab" for="i-${id}">${etiqueta}</label>`;
@@ -544,6 +571,27 @@ function campo(q, store, prefijo, ambito, indice) {
       cambio();
     });
     ctl.append(inp, dl);
+
+  } else if (q.t === "largo") {
+    // Texto de varias líneas (por ejemplo, justificar una respuesta).
+    ctl = document.createElement("div");
+    ctl.className = "largo";
+    const ta = document.createElement("textarea");
+    ta.id = `i-${id}`;
+    ta.rows = 4;
+    ta.maxLength = 500;
+    ta.value = store[q.id] || "";
+    const cuenta = document.createElement("span");
+    cuenta.className = "hint largo-cuenta";
+    const contar = () => { cuenta.textContent = `${ta.value.length} / 500`; };
+    ta.addEventListener("input", () => {
+      const v = mayus(ta.value.trim());
+      if (v) store[q.id] = v; else delete store[q.id];
+      contar();
+      cambio();
+    });
+    contar();
+    ctl.append(ta, cuenta);
 
   } else if (q.t === "text") {
     ctl = document.createElement("input");
@@ -640,14 +688,24 @@ function pantallasDeSeccion(sec, store, prefijo, ambito, indice, antetitulo, con
   return sec.qs.map((q, k) => {
     const caja = document.createElement("div");
     const titulo = (antetitulo ? antetitulo + " · " : "") + sec.title;
-    caja.innerHTML = `<p class="pantalla-sec">${esc(titulo)}</p>` +
+    caja.innerHTML = (ambito === "estudiante" ? bannerFicha(indice) : "") +
+      `<p class="pantalla-sec">${esc(sec.title)}</p>` +
       (k === 0 && sec.hint ? `<p class="hint pantalla-hint">${esc(sec.hint)}</p>` : "");
     caja.append(campo(q, store, prefijo, ambito, indice));
-    registro[registro.length - 1].grupo = titulo; // para el resumen final
-    const p = pantalla(caja, () => (!condicion || condicion()) && visible(q, store));
+    const r = registro[registro.length - 1];
+    r.grupo = titulo; // para el resumen final
+    // Se salta si no aplica o si quedó resuelta por respuestas anteriores.
+    const p = pantalla(caja, () => (!condicion || condicion()) && visible(q, store) && !r.fija);
     if (ambito === "estudiante") p.dataset.ficha = indice;
     return p;
   });
+}
+
+/** Franja que identifica a qué estudiante pertenece la pantalla. */
+function bannerFicha(i) {
+  const total = numFichas(A);
+  return `<div class="ficha-banner"><span class="ficha-chip">Ficha de caracterización</span>
+    <strong>Estudiante ${i + 1}</strong><span class="ficha-de">de ${total}</span></div>`;
 }
 
 const todas = () => [...$("#capas").querySelectorAll(".pantalla")];
@@ -690,15 +748,31 @@ function pintarResumen() {
       html += `<p class="resumen-sec">${esc(grupo)}</p><div class="resumen-filas">`;
     }
     const malo = errorEn(r) ? " malo" : "";
+    const auto = r.fija ? ` <span class="resumen-auto">automática</span>` : "";
     html += `<button type="button" class="resumen-fila${malo}" data-k="${k}" title="Volver a esta pregunta">
       <span class="resumen-n">${esc(r.q.n)}</span>
       <span class="resumen-q">${esc(corto(r.q.l))}</span>
-      <span class="resumen-v">${esc(valorLegible(r.store[r.q.id]))}</span></button>`;
+      <span class="resumen-v">${esc(valorLegible(r.store[r.q.id]))}${auto}</span></button>`;
   });
   if (grupo !== null) html += "</div>";
   caja.innerHTML = html || `<p class="hint">Aún no hay respuestas.</p>`;
   caja.querySelectorAll(".resumen-fila").forEach((b) =>
-    b.addEventListener("click", () => llevarA(filas[Number(b.dataset.k)].el)));
+    b.addEventListener("click", () => {
+      const r = filas[Number(b.dataset.k)];
+      // Las automáticas no tienen pantalla propia: se va a la que la define.
+      if (r.fija) { mensaje("Esta respuesta se llenó sola a partir de otras. Para cambiarla, corrija las preguntas de las que depende.", "info"); return; }
+      llevarA(r.el);
+    }));
+}
+
+/** Entradas obligatorias que todavía faltan o no cuadran, en orden. */
+function pendientes() {
+  const orden = todas();
+  const pos = (r) => orden.findIndex((p) => p.contains(r.el));
+  return registro
+    .filter((r) => visible(r.q, r.store) && (r.ambito !== "estudiante" || r.indice < numFichas(A))
+      && ((obligatoria(r) && !respondida(r.q, r.store)) || errorEn(r)))
+    .sort((a, b) => pos(a) - pos(b));
 }
 
 function actualizarNav() {
@@ -712,17 +786,19 @@ function actualizarNav() {
   $("#prev").hidden = !vecino(-1);
   $("#next").hidden = final;
   $("#send").hidden = !final;
+  if (final) vioResumen = true;
+  $("#toResumen").hidden = final || !vioResumen;
+
+  // El título de arriba dice siempre en qué ficha se está.
+  const fi = actual.dataset.ficha;
+  $("#formTitle").textContent = rolActual === "rectores" ? "Rectores"
+    : fi !== undefined ? `Ficha · Estudiante ${Number(fi) + 1} de ${numFichas(A)}` : "Docentes";
 
   const intro = actual.querySelector("[data-intro-texto]");
   if (intro) intro.textContent = textoIntroFichas();
 
-  const fin = actual.querySelector(".fin-ficha");
-  if (fin) {
-    const i = Number(fin.dataset.ficha);
-    fin.querySelector("[data-cuenta]").textContent = textoFinFicha(i);
-    const add = fin.querySelector("[data-add]");
-    if (add) add.hidden = S.length >= maxFichas(A).v;
-  }
+  const inicio = actual.querySelector(".inicio-ficha");
+  if (inicio) pintarEstadoFichas(inicio);
 
   if (final) pintarResumen();
 
@@ -732,10 +808,11 @@ function actualizarNav() {
     const hechas = vis.filter((r) => respondida(r.q, r.store)).length;
     const malas = registro.filter((r) => errorEn(r)).length;
     $("#resumenFin").textContent = malas
-      ? `Hay ${malas} respuesta(s) que no cuadran con otras. Al enviar le llevaremos a la primera para corregirla.`
+      ? `Hay ${malas} respuesta(s) que no cuadran con otras.`
       : hechas === vis.length
-        ? `Respondió las ${vis.length} preguntas obligatorias. Puede volver atrás para revisar o enviar ahora.`
-        : `Respondió ${hechas} de ${vis.length} preguntas obligatorias. Al enviar le llevaremos a las que faltan.`;
+        ? `Respondió las ${vis.length} preguntas obligatorias. Toque cualquier línea para corregirla, o envíe.`
+        : `Respondió ${hechas} de ${vis.length} preguntas obligatorias.`;
+    $("#irPendiente").hidden = !pendientes().length;
   }
 }
 
@@ -790,42 +867,38 @@ function cambiarA(destino, adelante) {
 /** En computador se enfoca el campo para escribir de una vez; en el
     celular solo el enunciado, para no abrir el teclado sin pedirlo. */
 function enfocar(p) {
-  const campoTexto = [...p.querySelectorAll('input[type="text"], input[type="number"], select')]
+  const campoTexto = [...p.querySelectorAll('input[type="text"], input[type="number"], select, textarea')]
     .find((x) => !x.closest("[hidden]"));
   if (campoTexto && punteroFino()) { campoTexto.focus({ preventScroll: true }); return; }
   const h = p.querySelector("legend, .lab, h2");
   if (h) { if (!h.hasAttribute("tabindex")) h.tabIndex = -1; h.focus({ preventScroll: true }); }
 }
 
-function siguiente() {
+/** ¿La pantalla actual está bien respondida? Si no, la marca y sacude. */
+function pantallaLista() {
   const aqui = registro.filter((r) => actual.contains(r.el) && visible(r.q, r.store));
   const falta = aqui.filter((r) => obligatoria(r) && !respondida(r.q, r.store));
   const malas = aqui.filter((r) => errorEn(r));
-  if (falta.length || malas.length) {
-    falta.forEach((r) => r.el.classList.add("missing"));
-    // Sacude la tarjeta para que se note que no avanzó.
-    [...falta, ...malas].forEach((r) => {
-      r.el.classList.remove("sacudir");
-      void r.el.offsetWidth;
-      r.el.classList.add("sacudir");
-    });
-    return;
-  }
-  if (actual.querySelector(".fin-ficha")) {
-    const tope = maxFichas(A);
-    if (S.length > tope.v) {
-      mensaje(`Tiene ${S.length} fichas, pero ${tope.m.charAt(0).toLowerCase() + tope.m.slice(1)} Quite las que sobran para continuar.`);
-      return;
-    }
-    // Desde la última ficha no se pasa a enviar sin las fichas obligatorias.
-    const minimo = minFichas(A);
-    const esUltima = Number(actual.querySelector(".fin-ficha").dataset.ficha) === S.length - 1;
-    if (esUltima && S.length < minimo.v) {
-      mensaje(`${minimo.m} Lleva ${S.length}. Pulse «+ Agregar otro estudiante» para continuar con la siguiente ficha.`);
-      return;
-    }
-  }
+  if (!falta.length && !malas.length) return true;
+  falta.forEach((r) => r.el.classList.add("missing"));
+  // Sacude la tarjeta para que se note que no avanzó.
+  [...falta, ...malas].forEach((r) => {
+    r.el.classList.remove("sacudir");
+    void r.el.offsetWidth;
+    r.el.classList.add("sacudir");
+  });
+  return false;
+}
+
+function siguiente() {
+  if (!pantallaLista()) return;
   cambiarA(vecino(1), true);
+}
+
+/** Desde cualquier pregunta, de vuelta al resumen (solo si ya llegó a él). */
+function volverResumen() {
+  if (!pantallaLista()) return;
+  cambiarA(pantallaFinal, true);
 }
 
 function anterior() {
@@ -843,10 +916,13 @@ function llevarA(el) {
    ===================================================================== */
 
 function cambio(qid) {
-  // La primera ficha aparece sola en cuanto el docente reporta estudiantes.
-  if (requiereFichas() && S.length === 0) { S.push({}); renderizarFichas(); return; }
+  // Las fichas se crean solas: una por cada estudiante con autismo.
+  if (rolActual === "docentes" && numFichas(A) !== fichasPintadas) { renderizarFichas(); return; }
 
   aplicarReglas();
+  // Una regla pudo fijar el número de estudiantes con autismo (p. ej. si
+  // tiene 1 estudiante a cargo): se ajustan las fichas antes de seguir.
+  if (rolActual === "docentes" && numFichas(A) !== fichasPintadas) { renderizarFichas(); return; }
   registro.forEach((r) => {
     if (respondida(r.q, r.store)) r.el.classList.remove("missing");
     if (qid && r.q.dep === qid && r.el._refill) r.el._refill();
@@ -866,7 +942,7 @@ function cambio(qid) {
    Construcción del formulario
    ===================================================================== */
 
-export function renderizarFormulario(rol) {
+export function renderizarFormulario(rol, ops = {}) {
   rolActual = rol;
   registro = [];
   actual = null;
@@ -877,6 +953,11 @@ export function renderizarFormulario(rol) {
   const borrador = cargarBorrador(rol);
   A = borrador.A || {};
   S = borrador.S || [];
+  vioResumen = !!borrador.fin;
+  fichasPintadas = -1;
+  // El contacto se llena con el correo verificado, si está vacío.
+  const contacto = rol === "rectores" ? "rc" : "dc";
+  if (ops.correo && !A[contacto]) A[contacto] = ops.correo.toLocaleUpperCase("es-CO");
 
   const ind = document.createElement("div");
   ind.className = "pasos-ind";
@@ -898,7 +979,7 @@ export function renderizarFormulario(rol) {
     $("#formTitle").textContent = "Docentes";
     $("#formIntro").innerHTML = `<h2 class="titulo">Encuesta para docentes</h2><p class="hint">Primero describa su grupo y responda las preguntas sobre su práctica pedagógica y su formación. Al final caracterice a cada estudiante con autismo que reportó, sin nombres ni documentos.</p>`;
     // Orden: el docente responde primero lo que es sobre él y su grupo, y
-    // al final caracteriza a cada estudiante (secciones 2 a 4, fichas).
+    // al final caracteriza a cada estudiante con autismo (fichas).
     agregar(pantallasDeSeccion(DOC_ID, A, "", "general", null));
     agregar(pantallasDeSeccion(DOC_GRUPO, A, "", "general", null));
     DOC_CIERRE.forEach((s) => agregar(pantallasDeSeccion(s, A, "", "general", null)));
@@ -909,7 +990,10 @@ export function renderizarFormulario(rol) {
   }
 
   const fin = document.createElement("div");
-  fin.innerHTML = `<p class="pantalla-sec">Último paso</p><h2 tabindex="-1">Revise y envíe</h2><p class="hint" id="resumenFin"></p><div class="resumen" id="resumenLista"></div>`;
+  fin.innerHTML = `<p class="pantalla-sec">Último paso</p><h2 tabindex="-1">Revise y envíe</h2>
+    <p class="hint" id="resumenFin"></p>
+    <button type="button" class="btn small" id="irPendiente" hidden>Ir a lo que falta →</button>
+    <div class="resumen" id="resumenLista"></div>`;
   pantallaFinal = pantalla(fin);
   capas.append(pantallaFinal);
 
@@ -918,6 +1002,7 @@ export function renderizarFormulario(rol) {
   nav.id = "pasoNav";
   nav.innerHTML = `
     <button type="button" class="btn ghost" id="prev">← Anterior</button>
+    <button type="button" class="btn ghost" id="toResumen" hidden>Volver al resumen</button>
     <button type="button" class="btn" id="next">Siguiente →</button>
     <button type="submit" class="btn" id="send">Enviar respuestas</button>`;
   f.append(nav);
@@ -925,6 +1010,11 @@ export function renderizarFormulario(rol) {
 
   $("#prev").addEventListener("click", anterior);
   $("#next").addEventListener("click", siguiente);
+  $("#toResumen").addEventListener("click", volverResumen);
+  $("#irPendiente").addEventListener("click", () => {
+    const p = pendientes()[0];
+    if (p) { p.el.classList.add("missing"); llevarA(p.el); }
+  });
 
   // Enter dentro de un campo avanza; solo en la pantalla final envía.
   f.onsubmit = (e) => {
@@ -935,116 +1025,111 @@ export function renderizarFormulario(rol) {
 
   if (rol === "docentes") renderizarFichas(); else cambio();
 
-  // Con un borrador a medias, se retoma en la primera pregunta sin responder.
+  // Con un borrador a medias, se retoma en la primera pregunta sin
+  // responder; si ya estaba todo y había llegado al resumen, en el resumen.
   const v = visibles();
   const pendiente = v.find((p) => registro.some((r) => p.contains(r.el) && obligatoria(r) && visible(r.q, r.store) && !respondida(r.q, r.store)));
-  actual = pendiente || v[0];
+  actual = pendiente || (vioResumen ? pantallaFinal : v[0]);
   actual.hidden = false;
   actualizarNav();
   mostrar("formView");
 }
 
-/* ---------- Fichas de estudiante ---------- */
+/* ---------- Fichas de caracterización ---------- */
 
 /** Pantalla que abre la última parte: deja claro que viene la
-    caracterización de cada estudiante y que es obligatoria. */
+    caracterización de cada estudiante con autismo y que es obligatoria. */
 function pantallaIntroFichas() {
   const caja = document.createElement("div");
   caja.className = "intro-fichas";
   caja.innerHTML = `
-    <p class="pantalla-sec">Última parte · Secciones 2, 3 y 4</p>
-    <h2 tabindex="-1">Caracterización de sus estudiantes con autismo</h2>
+    <p class="pantalla-sec">Última parte</p>
+    <h2 tabindex="-1">Fichas de caracterización de sus estudiantes con autismo</h2>
     <p class="obligatorio"><strong>Esta parte es OBLIGATORIA.</strong> Sin ella no se puede enviar la encuesta.</p>
     <p data-intro-texto></p>
     <ul class="intro-lista">
-      <li>Cada ficha tiene tres secciones: datos sociodemográficos, salud y acceso a servicios, y permanencia escolar.</li>
-      <li><strong>No escriba nombres ni documentos</strong>: el estudiante se identifica solo como «Estudiante 1», «Estudiante 2»…</li>
+      <li>Cada ficha tiene tres partes: A. sociodemográfica, B. salud y acceso a servicios, y C. permanencia escolar.</li>
+      <li>Al terminar una ficha pasa sola a la siguiente. Puede volver a una ficha ya diligenciada en cualquier momento.</li>
+      <li><strong>No escriba nombres ni documentos</strong>: cada estudiante se identifica solo como «Estudiante 1», «Estudiante 2»…</li>
       <li>Si no conoce un dato, elija «Información no disponible».</li>
     </ul>`;
   return pantalla(caja, requiereFichas);
 }
 
 function textoIntroFichas() {
-  const tope = minFichas(A);
-  const otras = A.d7 === "Sí" ? " Si reportó estudiantes con otras condiciones del neurodesarrollo, haga también una ficha para cada uno." : "";
-  return A.d5 === "Sí" && tope.v > 1
-    ? `En la pregunta 6 reportó ${tope.v} estudiantes con autismo: debe diligenciar una ficha por cada uno, es decir, ${tope.v} fichas.${otras}`
-    : A.d5 === "Sí"
-      ? `En la pregunta 6 reportó 1 estudiante con autismo: debe diligenciar su ficha.${otras}`
-      : `Diligencie una ficha por cada estudiante con una condición del neurodesarrollo reportada en su grupo.`;
+  const n = numFichas(A);
+  return n === 1
+    ? `En la pregunta ${preguntaFichas()} reportó 1 estudiante con autismo: diligencie su ficha.`
+    : `En la pregunta ${preguntaFichas()} reportó ${n} estudiantes con autismo. Se crearon ${n} fichas, una por cada uno: Estudiante 1 a Estudiante ${n}.`;
 }
 
+/** Estado de una ficha: completa, empezada o sin empezar. */
+function estadoFicha(i) {
+  const propias = registro.filter((r) => r.ambito === "estudiante" && r.indice === i && visible(r.q, r.store));
+  const oblig = propias.filter(obligatoria);
+  const hechas = oblig.filter((r) => respondida(r.q, r.store) && !errorEn(r)).length;
+  const manuales = propias.filter((r) => !r.fija && respondida(r.q, r.store)).length;
+  return { completa: oblig.length > 0 && hechas === oblig.length, empezada: manuales > 0, hechas, total: oblig.length };
+}
+
+/** Pantalla con que empieza cada ficha: a qué estudiante corresponde y el
+    estado de todas, con acceso directo a cada una. */
+function pantallaInicioFicha(i) {
+  const caja = document.createElement("div");
+  caja.className = "inicio-ficha";
+  caja.dataset.ficha = i;
+  caja.innerHTML = `
+    ${bannerFicha(i)}
+    <h2 tabindex="-1">Ficha del Estudiante ${i + 1}</h2>
+    <p class="hint">Las preguntas que siguen son solo sobre el <strong>Estudiante ${i + 1}</strong>. Piense en un solo niño o niña durante toda la ficha.</p>
+    <ol class="lista-fichas" aria-label="Estado de las fichas"></ol>`;
+  const p = pantalla(caja, () => requiereFichas() && i < numFichas(A));
+  p.dataset.ficha = i;
+  return p;
+}
+
+function pintarEstadoFichas(caja) {
+  const actualI = Number(caja.dataset.ficha);
+  const lista = caja.querySelector(".lista-fichas");
+  const n = numFichas(A);
+  let html = "";
+  for (let i = 0; i < n; i++) {
+    const e = estadoFicha(i);
+    const cls = i === actualI ? "actual" : e.completa ? "completa" : e.empezada ? "empezada" : "";
+    const estado = e.completa ? "Completa" : e.empezada ? `En curso · ${e.hechas} de ${e.total}` : "Sin empezar";
+    const accion = i === actualI ? `<span class="lf-aqui">Está aquí</span>`
+      : `<button type="button" class="btn ghost small" data-ir="${i}">${e.completa ? "Revisar" : e.empezada ? "Continuar" : "Ir"}</button>`;
+    html += `<li class="${cls}"><span class="lf-n">${i + 1}</span><span class="lf-txt"><strong>Estudiante ${i + 1}</strong><small>${estado}</small></span>${accion}</li>`;
+  }
+  lista.innerHTML = html;
+  lista.querySelectorAll("[data-ir]").forEach((b) => b.addEventListener("click", () => {
+    const destino = todas().find((p) => p.querySelector(`.inicio-ficha[data-ficha="${b.dataset.ir}"]`));
+    if (destino) cambiarA(destino);
+  }));
+}
+
+/** Dibuja las fichas que corresponden según el número de estudiantes con
+    autismo. Los datos de S se conservan siempre: si sobran fichas solo se
+    dejan de dibujar, y si faltan se agregan vacías. */
 function renderizarFichas() {
+  const n = numFichas(A);
+  while (S.length < n) S.push({});
+  fichasPintadas = n;
+
   registro = registro.filter((r) => r.store === A);
   const zona = $("#zonaFichas");
   zona.innerHTML = "";
-  S.forEach((st, i) => {
+  for (let i = 0; i < n; i++) {
+    zona.append(pantallaInicioFicha(i));
     DOC_ESTUDIANTE.forEach((sec) =>
-      pantallasDeSeccion(sec, st, `s${i}-`, "estudiante", i, `Estudiante ${i + 1}`, requiereFichas)
+      pantallasDeSeccion(sec, S[i], `s${i}-`, "estudiante", i, `Estudiante ${i + 1}`, requiereFichas)
         .forEach((p) => zona.append(p)));
-    zona.append(pantallaFinFicha(i));
-  });
+  }
   cambio();
 }
 
-/* Se calcula al mostrar la pantalla, porque la pregunta 6 (cuántos
-   estudiantes) puede responderse después de creada la primera ficha. */
-function textoFinFicha(i) {
-  const n = Number(A.d6 || 0);
-  const tope = maxFichas(A);
-  const cuenta = A.d5 === "Sí" && n
-    ? `Lleva ${S.length} ficha(s) de ${n} estudiante(s) con autismo que reportó.`
-    : `Lleva ${S.length} ficha(s).`;
-  if (i !== S.length - 1) return cuenta;
-  const minimo = minFichas(A);
-  if (S.length < minimo.v) return `${cuenta} Faltan ${minimo.v - S.length} ficha(s) obligatoria(s): agregue el siguiente estudiante.`;
-  if (S.length >= tope.v) return `${cuenta} ${tope.m} Ya no se pueden agregar más.`;
-  return `${cuenta} Si tiene otro estudiante para reportar, agréguelo; si no, continúe.`;
-}
-
-function pantallaFinFicha(i) {
-  const caja = document.createElement("div");
-  caja.className = "fin-ficha";
-  const ultima = i === S.length - 1;
-  caja.dataset.ficha = i;
-  caja.innerHTML = `
-    <p class="pantalla-sec">Estudiante ${i + 1}</p>
-    <h2 tabindex="-1">Ficha del estudiante ${i + 1} completa</h2>
-    <p class="hint" data-cuenta></p>
-    <div class="actions">
-      ${ultima ? `<button type="button" class="btn ghost" data-add>+ Agregar otro estudiante</button>` : ""}
-      ${S.length > 1 ? `<button type="button" class="btn ghost small" data-rm>Quitar esta ficha</button>` : ""}
-    </div>`;
-
-  const add = caja.querySelector("[data-add]");
-  if (add) add.addEventListener("click", () => {
-    if (S.length >= maxFichas(A).v) return;
-    S.push({});
-    renderizarFichas();
-    const nueva = todas().find((p) => p.dataset.ficha === String(S.length - 1) && aplica(p));
-    cambiarA(nueva, true);
-  });
-
-  // Quitar pide una segunda pulsación: evita borrados accidentales.
-  const rm = caja.querySelector("[data-rm]");
-  if (rm) rm.addEventListener("click", () => {
-    if (!rm.dataset.armed) {
-      rm.dataset.armed = "1";
-      rm.textContent = "¿Quitar? Toque de nuevo";
-      setTimeout(() => { if (rm.isConnected) { delete rm.dataset.armed; rm.textContent = "Quitar esta ficha"; } }, 3000);
-      return;
-    }
-    S.splice(i, 1);
-    renderizarFichas();
-    const fines = [...$("#zonaFichas").querySelectorAll(".pantalla")].filter((p) => p.querySelector(".fin-ficha"));
-    cambiarA(fines[Math.max(0, i - 1)], false);
-  });
-
-  return pantalla(caja, requiereFichas);
-}
-
-/** ¿El rol y las respuestas actuales exigen al menos una ficha de estudiante? */
-export const requiereFichas = () => rolActual === "docentes" && (A.d5 === "Sí" || A.d7 === "Sí");
+/** ¿El docente reportó estudiantes con autismo? Entonces hay fichas. */
+export const requiereFichas = () => rolActual === "docentes" && numFichas(A) > 0;
 
 /* =====================================================================
    Acceso para los demás módulos
@@ -1052,7 +1137,7 @@ export const requiereFichas = () => rolActual === "docentes" && (A.d5 === "Sí" 
 
 export const obtenerRegistro = () => registro;
 export const rol = () => rolActual;
-export const numeroDeFichas = () => S.length;
+export const numeroDeFichas = () => numFichas(A);
 
 /** Recibe descriptores { id, ambito, indice } de transformador.js, resalta
     las preguntas correspondientes y lleva a la primera. */
@@ -1062,6 +1147,28 @@ export function marcarFaltantes(faltantes) {
     .filter(Boolean);
   elementos.forEach((r) => r.el.classList.add("missing"));
   if (elementos.length) llevarA(elementos[0].el);
+}
+
+/** Aviso en la pantalla de inicio (debajo de las encuestas). */
+export function avisoInicio(html, clase = "bad") {
+  $("#homeMsg").innerHTML = html ? `<div class="notice ${clase}">${html}</div>` : "";
+}
+
+/** Contenedor de la verificación de correo de la pantalla de inicio. */
+export const contenedorAcceso = () => $("#acceso");
+
+/** ¿Marcó la autorización de tratamiento de datos? */
+export const autorizo = () => $("#acepto").checked;
+
+/** Bloquea las tarjetas de las encuestas que el correo ya envió. */
+export function marcarUsadas(tipos) {
+  const nombre = { rectores: "rector", docentes: "docente" };
+  raiz.querySelectorAll("[data-form]").forEach((b) => {
+    const usada = (tipos || []).includes(nombre[b.dataset.form]);
+    b.classList.toggle("usada", usada);
+    b.disabled = usada;
+    b.querySelector(".go").textContent = usada ? "Ya enviada con este correo" : "Comenzar →";
+  });
 }
 
 export function mensaje(html, clase = "bad") {
@@ -1087,15 +1194,26 @@ export function bloquearEnvio(bloqueado, texto) {
 
 const clave = (rol) => "innovatea-" + rol;
 
+/* Se guarda en el navegador y, además, en memoria: si el navegador no
+   deja guardar (modo privado, página incrustada), salir al inicio y volver
+   a entrar no borra lo diligenciado mientras la página siga abierta. */
 function guardarBorrador() {
-  try { localStorage.setItem(clave(rolActual), JSON.stringify({ A, S })); } catch (e) { /* modo privado */ }
+  const datos = { A, S, fin: vioResumen };
+  memoria[rolActual] = datos;
+  try { localStorage.setItem(clave(rolActual), JSON.stringify(datos)); } catch (e) { /* modo privado */ }
 }
 function cargarBorrador(rol) {
-  try { return JSON.parse(localStorage.getItem(clave(rol)) || "{}"); } catch (e) { return {}; }
+  try {
+    const guardado = localStorage.getItem(clave(rol));
+    if (guardado) return JSON.parse(guardado);
+  } catch (e) { /* modo privado */ }
+  return memoria[rol] || {};
 }
 export function limpiarBorrador(rol) {
-  try { localStorage.removeItem(clave(rol || rolActual)); } catch (e) { /* modo privado */ }
-  A = {}; S = [];
+  const r = rol || rolActual;
+  try { localStorage.removeItem(clave(r)); } catch (e) { /* modo privado */ }
+  delete memoria[r];
+  A = {}; S = []; vioResumen = false;
 }
 
 /** Pantalla final. `nota` permite avisar, por ejemplo, que el envío quedó

@@ -11,7 +11,13 @@
 
    Si la red falla, el envío queda en una cola local y se reintenta la
    próxima vez que se abra el formulario: en zonas con conectividad
-   intermitente esto evita perder una encuesta ya diligenciada. */
+   intermitente esto evita perder una encuesta ya diligenciada.
+
+   Si en cambio el SERVIDOR rechaza el envío (por ejemplo, el correo ya
+   envió esa encuesta), no se encola: se avisa a quien responde.
+
+   Cada envío lleva `verificacion.pase`: el que Codigo.gs entregó al
+   comprobar el código que llegó al correo de quien responde. */
 
 const COLA = "innovatea-pendientes";
 
@@ -19,8 +25,13 @@ const COLA = "innovatea-pendientes";
    Envío
    ===================================================================== */
 
-function sobre(registro, destinos) {
-  return { version: 1, accion: "registrar", registro, destinos };
+function sobre(registro, destinos, verificacion) {
+  return { version: 1, accion: "registrar", registro, destinos, verificacion: verificacion || {} };
+}
+
+/** Error que viene del servidor (no de la red): no se reintenta solo. */
+class Rechazo extends Error {
+  constructor(m) { super(m); this.rechazo = true; }
 }
 
 async function postear(endpoint, cuerpo) {
@@ -34,23 +45,42 @@ async function postear(endpoint, cuerpo) {
   const texto = await res.text();
   let datos;
   try { datos = JSON.parse(texto); } catch (e) { throw new Error("Respuesta no válida del servidor"); }
-  if (!datos.ok) throw new Error(datos.error || "El servidor rechazó el envío");
+  if (!datos.ok) throw new Rechazo(datos.error || "El servidor rechazó el envío");
   return datos;
+}
+
+/* ---------- Verificación por correo ---------- */
+
+function exigirEndpoint(config) {
+  if (!config.ENDPOINT_SHEETS) throw new Error("Falta configurar ENDPOINT_SHEETS en config.js.");
+}
+
+/** Pide a Codigo.gs que envíe un código de 6 dígitos al correo. */
+export async function pedirCodigo(correo, config) {
+  exigirEndpoint(config);
+  return postear(config.ENDPOINT_SHEETS, { version: 1, accion: "pedirCodigo", correo });
+}
+
+/** Comprueba el código. Devuelve { pase, correo, usadas }. */
+export async function verificarCodigo(correo, codigo, config) {
+  exigirEndpoint(config);
+  return postear(config.ENDPOINT_SHEETS, { version: 1, accion: "verificarCodigo", correo, codigo });
 }
 
 /**
  * Manda un envío a la hoja de cálculo.
  * @returns {Promise<{ok:boolean, encolado:boolean}>}
  */
-export async function enviarASheets(registro, destinos, config) {
+export async function enviarASheets(registro, destinos, config, verificacion) {
   if (!config.ENDPOINT_SHEETS) {
     throw new Error("Falta configurar ENDPOINT_SHEETS en config.js.");
   }
-  const cuerpo = sobre(registro, destinos);
+  const cuerpo = sobre(registro, destinos, verificacion);
   try {
     await postear(config.ENDPOINT_SHEETS, cuerpo);
     return { ok: true, encolado: false };
   } catch (err) {
+    if (err.rechazo) throw err; // el servidor dijo que no: no se reintenta solo
     encolar(cuerpo);
     return { ok: false, encolado: true, error: err.message };
   }
@@ -84,7 +114,7 @@ export async function reintentarPendientes(config) {
   let enviados = 0;
   for (const cuerpo of lista) {
     try { await postear(config.ENDPOINT_SHEETS, cuerpo); enviados++; }
-    catch (e) { quedan.push(cuerpo); }
+    catch (e) { if (!e.rechazo) quedan.push(cuerpo); }
   }
   escribirCola(quedan);
   return enviados;

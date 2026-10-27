@@ -2,7 +2,9 @@
    Cada pregunta es un objeto:
      id    clave corta con la que viaja la respuesta (r1, d5, e22…)
      n     número visible para el encuestado
-     t     tipo de control: text | num | numna | select | multi | radio | inst
+     t     tipo de control: text | largo | num | numna | select | multi | radio | inst
+           (largo = texto de varias líneas, hasta 500 caracteres)
+     ayuda texto corto bajo el enunciado
      l     enunciado
      o     opciones (radio, multi, select)
      x     opción excluyente dentro de un multi ("Ninguna" desmarca el resto)
@@ -16,8 +18,18 @@
    de rectores se divide en cuatro partes: así nadie enfrenta 28 preguntas
    de una vez. El orden de las columnas en la hoja no cambia.
 
-   El formulario de docentes se arma en cuatro bloques porque las
-   secciones 2 a 4 se repiten una vez por cada estudiante reportado. */
+   DOCENTES: las preguntas del docente van numeradas en secuencia (1 a 22)
+   en el orden en que se responden: Sección 1 (su grupo), 2
+   (desescolarización), 3 (apoyos pedagógicos) y 4 (formación).
+
+   La FICHA DE CARACTERIZACIÓN (DOC_ESTUDIANTE) va al final, se repite
+   una vez por cada estudiante con autismo y tiene numeración propia,
+   F1 a F25 (F24, la justificación del riesgo, solo si F23 es "Sí"), en tres partes: A (sociodemográfica), B (salud) y C
+   (permanencia).
+
+   Los id (d33, e9…) son los de la versión original del instrumento y no
+   cambian: son las claves con que se guardan las respuestas. Solo cambia
+   el número que se muestra. */
 
 import { MUNICIPIOS, INSTITUCIONES, EPS, NIVEL, SN, SNS, SNI, EDADES, GRADOS } from "./catalogos.js";
 
@@ -80,57 +92,58 @@ export const DOC_GRUPO={title:"Sección 1. Identificación de la institución ed
   {id:"d8",n:8,t:"multi",l:"¿Cuáles condiciones han sido reportadas?",o:["TDAH","Discapacidad intelectual","Trastornos del aprendizaje","Trastornos del lenguaje","Tics o Tourette","Otras"],show:yes("d7")},
 ]};
 export const DOC_ESTUDIANTE=[
- {title:"Sección 2. Caracterización sociodemográfica",hint:"Condiciones sociales y territoriales del estudiante. No escriba su nombre.",qs:[
-  {id:"e9",n:9,t:"radio",l:"¿Cuál es el sexo registrado del estudiante?",o:["Femenino","Masculino","Información no disponible"]},
-  {id:"e10",n:10,t:"radio",l:"¿En qué grupo de edad se encuentra el estudiante?",o:EDADES},
-  {id:"e11",n:11,t:"radio",l:"¿En qué grado se encuentra matriculado?",o:GRADOS},
-  {id:"e12",n:12,t:"radio",l:"¿Cuál es la pertenencia étnica registrada del estudiante?",o:["Indígena","Negro(a), afrocolombiano(a), raizal o palenquero(a)","Rrom o gitano(a)","Ninguno de los anteriores","Información no disponible"]},
-  {id:"e13",n:13,t:"radio",l:"¿En qué zona reside el estudiante?",o:["Urbana","Rural","Información no disponible"]},
-  {id:"e14",n:14,t:"radio",l:"¿Cuál es el estrato socioeconómico registrado del hogar del estudiante?",o:["Estrato 1","Estrato 2","Estrato 3","Estrato 4","Estrato 5","Estrato 6","Sin estratificación registrada","Información no disponible"]},
-  {id:"e15",n:15,t:"radio",l:"¿El estudiante pertenece a población migrante internacional?",o:SNI},
-  {id:"e16",n:16,t:"radio",l:"¿El estudiante se encuentra registrado como población afectada por desplazamiento forzado?",o:SNI},
-  {id:"e17",n:17,t:"select",l:"¿Cuál es el último nivel educativo alcanzado por la madre o cuidadora principal?",o:NIVEL},
-  {id:"e18",n:18,t:"select",l:"¿Cuál es el último nivel educativo alcanzado por el padre o cuidador principal?",o:NIVEL},
+ {title:"Parte A. Caracterización sociodemográfica",hint:"Condiciones sociales y territoriales del estudiante. No escriba su nombre.",qs:[
+  {id:"e9",n:"F1",t:"radio",l:"¿Cuál es el sexo registrado del estudiante?",o:["Femenino","Masculino","Información no disponible"]},
+  {id:"e10",n:"F2",t:"radio",l:"¿En qué grupo de edad se encuentra el estudiante?",o:EDADES},
+  {id:"e11",n:"F3",t:"radio",l:"¿En qué grado se encuentra matriculado?",o:GRADOS},
+  {id:"e12",n:"F4",t:"radio",l:"¿Cuál es la pertenencia étnica registrada del estudiante?",o:["Indígena","Afrocolombiano(a), raizal o palenquero(a)","Rrom o gitano(a)","Ninguno de los anteriores","Información no disponible"]},
+  {id:"e13",n:"F5",t:"radio",l:"¿En qué zona reside el estudiante?",o:["Urbana","Rural","Información no disponible"]},
+  {id:"e14",n:"F6",t:"radio",l:"¿Cuál es el estrato socioeconómico registrado del hogar del estudiante?",o:["Estrato 1","Estrato 2","Estrato 3","Estrato 4","Estrato 5","Estrato 6","Sin estratificación registrada","Información no disponible"]},
+  {id:"e15",n:"F7",t:"radio",l:"¿El estudiante pertenece a población migrante internacional?",o:SNI},
+  {id:"e16",n:"F8",t:"radio",l:"¿El estudiante se encuentra registrado como población afectada por desplazamiento forzado?",o:SNI},
+  {id:"e17",n:"F9",t:"select",l:"¿Cuál es el último nivel educativo alcanzado por la madre o cuidadora principal?",o:NIVEL},
+  {id:"e18",n:"F10",t:"select",l:"¿Cuál es el último nivel educativo alcanzado por el padre o cuidador principal?",o:NIVEL},
  ]},
- {title:"Sección 3. Condiciones de salud y acceso a servicios",qs:[
-  {id:"e19",n:19,t:"select",l:"¿A qué EPS se encuentra afiliado el estudiante?",o:EPS},
-  {id:"e20",n:20,t:"radio",l:"¿A qué régimen de afiliación en salud pertenece?",o:["Contributivo","Subsidiado","Especial o de excepción","No afiliado","Información no disponible"]},
-  {id:"e21",n:21,t:"radio",l:"Si pertenece al régimen contributivo, ¿cuál es su condición de afiliación?",o:["Cotizante","Beneficiario","Información no disponible"],show:a=>a.e20==="Contributivo"},
-  {id:"e22",n:22,t:"radio",l:"¿Cuál es la situación diagnóstica reportada del estudiante?",o:["Diagnóstico con soporte documental","Diagnóstico informado por la familia sin soporte disponible","En proceso de valoración","Sin diagnóstico reportado","Información no disponible"]},
-  {id:"e23",n:23,t:"multi",l:"¿Qué condición o condiciones del neurodesarrollo se encuentran reportadas?",o:["Autismo","TDAH","Discapacidad intelectual","Trastornos del lenguaje o comunicación","Trastornos específicos del aprendizaje","Tics o Tourette","Otra","Ninguna"],x:"Ninguna"},
-  {id:"e24",n:24,t:"radio",l:"¿El estudiante recibe actualmente acompañamiento terapéutico o atención profesional en salud, según la información conocida por el docente?",o:SNI},
-  {id:"e25",n:25,t:"multi",l:"¿Qué tipos de atención profesional recibe el estudiante, según la información disponible?",o:["Psicología","Fonoaudiología","Terapia ocupacional","Medicina especializada","Fisioterapia","Otra"],show:yes("e24")},
-  {id:"e26",n:26,t:"radio",l:"¿Se han identificado dificultades para acceder a servicios de valoración o atención en salud?",o:SNI},
-  {id:"e27",n:27,t:"multi",l:"¿Cuáles son las dificultades de acceso conocidas?",o:["Distancia","Costos de transporte","Demoras de EPS","Falta de especialistas","Dificultades para obtener autorizaciones","Desconocimiento de rutas","Otras"],show:yes("e26")},
+ {title:"Parte B. Condiciones de salud y acceso a servicios",qs:[
+  {id:"e19",n:"F11",t:"select",l:"¿A qué EPS se encuentra afiliado el estudiante?",o:EPS},
+  {id:"e20",n:"F12",t:"radio",l:"¿A qué régimen de afiliación en salud pertenece?",o:["Contributivo","Subsidiado","Especial o de excepción","No afiliado","Información no disponible"]},
+  {id:"e21",n:"F13",t:"radio",l:"Si pertenece al régimen contributivo, ¿cuál es su condición de afiliación?",o:["Cotizante","Beneficiario","Información no disponible"],show:a=>a.e20==="Contributivo"},
+  {id:"e22",n:"F14",t:"radio",l:"¿Cuál es la situación diagnóstica reportada del estudiante?",o:["Diagnóstico con soporte documental","Diagnóstico informado por la familia sin soporte disponible","En proceso de valoración","Sin diagnóstico reportado","Información no disponible"]},
+  {id:"e23",n:"F15",t:"multi",l:"¿Qué condición o condiciones del neurodesarrollo se encuentran reportadas?",o:["Autismo","TDAH","Discapacidad intelectual","Trastornos del lenguaje o comunicación","Trastornos específicos del aprendizaje","Tics o Tourette","Otra","Ninguna"],x:"Ninguna"},
+  {id:"e24",n:"F16",t:"radio",l:"¿El estudiante recibe actualmente acompañamiento terapéutico o atención profesional en salud, según la información conocida por el docente?",o:SNI},
+  {id:"e25",n:"F17",t:"multi",l:"¿Qué tipos de atención profesional recibe el estudiante, según la información disponible?",o:["Psicología","Fonoaudiología","Terapia ocupacional","Medicina especializada","Fisioterapia","Otra"],show:yes("e24")},
+  {id:"e26",n:"F18",t:"radio",l:"¿Se han identificado dificultades para acceder a servicios de valoración o atención en salud?",o:SNI},
+  {id:"e27",n:"F19",t:"multi",l:"¿Cuáles son las dificultades de acceso conocidas?",o:["Distancia","Costos de transporte","Demoras de EPS","Falta de especialistas","Dificultades para obtener autorizaciones","Desconocimiento de rutas","Otras","Información no disponible"],x:"Información no disponible",show:yes("e26")},
  ]},
- {title:"Sección 4. Permanencia y desescolarización",qs:[
-  {id:"e28",n:28,t:"radio",l:"¿Cómo ha sido la asistencia escolar del estudiante durante el presente año lectivo?",o:["Regular","Presenta ausencias ocasionales","Presenta ausencias frecuentes","Información no disponible"]},
-  {id:"e29",n:29,t:"radio",l:"¿Se han presentado interrupciones prolongadas en la asistencia escolar?",o:SNI},
-  {id:"e30",n:30,t:"multi",l:"¿Cuáles han sido los principales motivos conocidos de inasistencia o interrupción escolar?",o:["Situaciones de salud","Dificultades de transporte","Barreras de accesibilidad","Dificultades económicas","Barreras de inclusión","Situaciones familiares","Desconocido","No aplica"],x:"No aplica"},
-  {id:"e31",n:31,t:"radio",l:"¿El estudiante ha estado en riesgo de abandonar o interrumpir su proceso educativo durante el año lectivo?",o:SNS},
-  {id:"e32",n:32,t:"multi",l:"¿Qué acciones se han implementado para favorecer su permanencia escolar?",o:["Seguimiento a la asistencia","Comunicación con la familia","Ajustes razonables","Flexibilización de actividades","Acompañamiento de orientación escolar","Articulación con entidades externas","Ninguna"],x:"Ninguna"},
+ {title:"Parte C. Permanencia y desescolarización",qs:[
+  {id:"e28",n:"F20",t:"radio",l:"¿Cómo ha sido la asistencia escolar del estudiante durante el presente año lectivo?",o:["Regular","Presenta ausencias ocasionales","Presenta ausencias frecuentes","Información no disponible"]},
+  {id:"e29",n:"F21",t:"radio",l:"¿Se han presentado interrupciones prolongadas en la asistencia escolar?",o:SNI},
+  {id:"e30",n:"F22",t:"multi",l:"¿Cuáles han sido los principales motivos conocidos de inasistencia o interrupción escolar?",o:["Situaciones de salud","Dificultades de transporte","Barreras de accesibilidad","Dificultades económicas","Barreras de inclusión","Situaciones familiares","Desconocido","No aplica"],x:"No aplica"},
+  {id:"e31",n:"F23",t:"radio",l:"¿El estudiante ha estado en riesgo de abandonar o interrumpir su proceso educativo durante el año lectivo?",o:SNS},
+  {id:"e31j",n:"F24",t:"largo",l:"¿Por qué ha estado en riesgo? Explique brevemente la situación.",ayuda:"Sin nombres ni datos que permitan identificar al estudiante o a su familia.",show:yes("e31")},
+  {id:"e32",n:"F25",t:"multi",l:"¿Qué acciones se han implementado para favorecer su permanencia escolar?",o:["Seguimiento a la asistencia","Comunicación con la familia","Ajustes razonables","Flexibilización de actividades","Acompañamiento de orientación escolar","Articulación con entidades externas","Ninguna"],x:"Ninguna"},
  ]},
 ];
 export const DOC_CIERRE=[
- {title:"Desescolarización en su institución",hint:"Preguntas 33 y 34 de la sección 4, sobre todos los estudiantes que conoce.",qs:[
-  {id:"d33",n:33,t:"radio",l:"¿Durante los últimos 12 meses ha conocido casos de estudiantes con autismo u otras condiciones del neurodesarrollo que dejaron de asistir definitivamente a la institución educativa?",o:SNS},
-  {id:"d34",n:34,t:"numna",l:"¿Cuántos casos de interrupción de escolaridad sin continuidad educativa conocida ha identificado en ese periodo?",show:yes("d33")},
+ {title:"Sección 2. Desescolarización en su institución",hint:"Sobre todos los estudiantes que conoce en la institución, no solo los de su grupo.",qs:[
+  {id:"d33",n:9,t:"radio",l:"¿Durante los últimos 12 meses ha conocido casos de estudiantes con autismo u otras condiciones del neurodesarrollo que dejaron de asistir definitivamente a la institución educativa?",o:SNS},
+  {id:"d34",n:10,t:"numna",l:"¿Cuántos casos de interrupción de escolaridad sin continuidad educativa conocida ha identificado en ese periodo?",show:yes("d33")},
  ]},
- {title:"Sección 5. Necesidades educativas y apoyos pedagógicos",qs:[
-  {id:"d35",n:35,t:"multi",l:"¿Qué necesidades de apoyo identifica con mayor frecuencia en sus estudiantes?",o:["Comunicación","Interacción social","Atención","Organización de actividades","Regulación sensorial","Aprendizaje","Autonomía"]},
-  {id:"d36",n:36,t:"multi",l:"¿Qué situaciones observa en estudiantes que podrían requerir orientación para valoración profesional?",o:["Dificultades persistentes de comunicación","Necesidad de apoyo en interacción","Conductas repetitivas","Sensibilidad sensorial","Dificultades de atención","Dificultades de aprendizaje","Ninguna"],x:"Ninguna"},
-  {id:"d37",n:37,t:"multi",l:"¿Qué estrategias pedagógicas utiliza?",o:["Apoyos visuales","Instrucciones por pasos","Adaptación de actividades","Anticipación de rutinas","Flexibilización de tiempos","Apoyos sensoriales","Otras"]},
-  {id:"d38",n:38,t:"radio",l:"¿Participa en la elaboración o implementación del PIAR cuando corresponde?",o:["Sí","No","No ha sido necesario","No sabe"]},
-  {id:"d39",n:39,t:"multi",l:"¿Qué barreras afectan con mayor frecuencia la participación de estos estudiantes?",o:["Comunicativas","Sensoriales","Pedagógicas","Actitudinales","Falta de recursos","Falta de acompañamiento"]},
-  {id:"d40",n:40,t:"radio",l:"¿Cuenta con acompañamiento de docentes de apoyo pedagógico?",o:["Siempre","Frecuentemente","Ocasionalmente","Nunca"]},
+ {title:"Sección 3. Necesidades educativas y apoyos pedagógicos",qs:[
+  {id:"d35",n:11,t:"multi",l:"¿Qué necesidades de apoyo identifica con mayor frecuencia en sus estudiantes?",o:["Comunicación","Interacción social","Atención","Organización de actividades","Regulación sensorial","Aprendizaje","Autonomía"]},
+  {id:"d36",n:12,t:"multi",l:"¿Qué situaciones observa en estudiantes que podrían requerir orientación para valoración profesional?",o:["Dificultades persistentes de comunicación","Necesidad de apoyo en interacción","Conductas repetitivas","Sensibilidad sensorial","Dificultades de atención","Dificultades de aprendizaje","Ninguna"],x:"Ninguna"},
+  {id:"d37",n:13,t:"multi",l:"¿Qué estrategias pedagógicas utiliza?",o:["Apoyos visuales","Instrucciones por pasos","Adaptación de actividades","Anticipación de rutinas","Flexibilización de tiempos","Apoyos sensoriales","Otras"]},
+  {id:"d38",n:14,t:"radio",l:"¿Participa en la elaboración o implementación del PIAR cuando corresponde?",o:["Sí","No","No ha sido necesario","No sabe"]},
+  {id:"d39",n:15,t:"multi",l:"¿Qué barreras afectan con mayor frecuencia la participación de estos estudiantes?",o:["Comunicativas","Sensoriales","Pedagógicas","Actitudinales","Falta de recursos","Falta de acompañamiento"]},
+  {id:"d40",n:16,t:"radio",l:"¿Cuenta con acompañamiento de docentes de apoyo pedagógico?",o:["Siempre","Frecuentemente","Ocasionalmente","Nunca"]},
  ]},
- {title:"Sección 6. Formación y fortalecimiento de capacidades docentes",qs:[
-  {id:"d41",n:41,t:"radio",l:"¿Cómo valora su preparación para implementar estrategias inclusivas?",o:["Muy preparado","Preparado","Poco preparado","Nada preparado"]},
-  {id:"d42",n:42,t:"radio",l:"¿Ha recibido capacitación sobre autismo o neurodivergencias?",o:SN},
-  {id:"d43",n:43,t:"radio",l:"¿Cuántas capacitaciones ha recibido durante los últimos dos años?",o:["1","2","3","4","5 o más"],show:yes("d42")},
-  {id:"d44",n:44,t:"multi",l:"¿En qué temas relacionados con el autismo y otras neurodivergencias necesita fortalecer sus conocimientos?",o:["Autismo","TDAH","Estrategias pedagógicas inclusivas","PIAR","Comunicación aumentativa y alternativa","Regulación emocional y sensorial","Apoyo ante situaciones de crisis","Diseño Universal para el Aprendizaje","Trabajo con familias"]},
-  {id:"d45",n:45,t:"multi",l:"¿Cuáles son las principales dificultades para implementar apoyos educativos?",o:["Tiempo","Formación","Recursos","Tamaño del grupo","Falta de acompañamiento","Articulación con familias"]},
-  {id:"d46",n:46,t:"multi",l:"¿Qué acompañamiento considera más útil para mejorar la inclusión?",o:["Talleres prácticos","Asesoría en aula","Materiales pedagógicos","Acompañamiento interdisciplinario","Formación virtual","Comunidades de aprendizaje"]},
+ {title:"Sección 4. Formación y fortalecimiento de capacidades docentes",qs:[
+  {id:"d41",n:17,t:"radio",l:"¿Cómo valora su preparación para implementar estrategias inclusivas?",o:["Muy preparado","Preparado","Poco preparado","Nada preparado"]},
+  {id:"d42",n:18,t:"radio",l:"¿Ha recibido capacitación sobre autismo o neurodivergencias?",o:SN},
+  {id:"d43",n:19,t:"radio",l:"¿Cuántas capacitaciones ha recibido durante los últimos dos años?",o:["1","2","3","4","5 o más"],show:yes("d42")},
+  {id:"d44",n:20,t:"multi",l:"¿En qué temas relacionados con el autismo y otras neurodivergencias necesita fortalecer sus conocimientos?",o:["Autismo","TDAH","Estrategias pedagógicas inclusivas","PIAR","Comunicación aumentativa y alternativa","Regulación emocional y sensorial","Apoyo ante situaciones de crisis","Diseño Universal para el Aprendizaje","Trabajo con familias"]},
+  {id:"d45",n:21,t:"multi",l:"¿Cuáles son las principales dificultades para implementar apoyos educativos?",o:["Tiempo","Formación","Recursos","Tamaño del grupo","Falta de acompañamiento","Articulación con familias"]},
+  {id:"d46",n:22,t:"multi",l:"¿Qué acompañamiento considera más útil para mejorar la inclusión?",o:["Talleres prácticos","Asesoría en aula","Materiales pedagógicos","Acompañamiento interdisciplinario","Formación virtual","Comunidades de aprendizaje"]},
  ]},
 ];
 

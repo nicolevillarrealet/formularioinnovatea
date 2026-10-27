@@ -15,7 +15,7 @@
 <meta charset="utf-8">
 <base target="_top">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@v1.0.0/estilos/innovatea.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@v1.3.0/estilos/innovatea.css">
 <style>html,body{margin:0}</style>
 </head>
 <body>
@@ -27,9 +27,12 @@
 </div>
 
 <script type="module">
-import { montar } from "https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@v1.0.0/modulos/panel.js";
+import { montar } from "https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@v1.3.0/modulos/panel.js";
 
-const panel = montar(document.getElementById("panel"), { urlHoja: "<?= urlHoja ?>" });
+const reconstruir = (destinos) => new Promise((ok, falla) =>
+  google.script.run.withSuccessHandler(ok).withFailureHandler(falla).reconstruirHojas(destinos));
+
+const panel = montar(document.getElementById("panel"), { urlHoja: "<?= urlHoja ?>", reconstruir });
 
 function cargar() {
   google.script.run

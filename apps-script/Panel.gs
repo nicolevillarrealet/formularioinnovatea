@@ -60,3 +60,62 @@ function listarRegistros() {
     })
     .filter(function (r) { return r; });
 }
+
+/* ===================================================================
+   Reorganizar las pestañas con el formato actual
+   =================================================================== */
+
+var HOJAS_DATOS = ['Rectores', 'Docentes', 'Estudiantes'];
+var MAX_COLUMNAS = 400;
+
+/**
+ * Rearma las pestañas Rectores, Docentes y Estudiantes con las filas que
+ * le manda el panel (calculadas desde _envios con el formato vigente).
+ *
+ * No borra nada: cada pestaña actual se renombra como respaldo
+ * ("Docentes respaldo 2026-10-27 15:40") y se crea una nueva. Cuando
+ * haya revisado que la nueva está bien, puede borrar los respaldos.
+ *
+ * Solo funciona para quien tenga permiso de EDICIÓN en la hoja: el script
+ * se ejecuta con la cuenta de quien abrió el panel.
+ */
+function reconstruirHojas(destinos) {
+  if (!Array.isArray(destinos)) throw new Error('Datos no válidos');
+  var libro = SpreadsheetApp.openById(ID_HOJA);
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var sello = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm');
+    var hechas = [];
+    destinos.forEach(function (d) {
+      if (HOJAS_DATOS.indexOf(d.hoja) === -1) return;
+      if (!Array.isArray(d.encabezados) || !d.encabezados.length || d.encabezados.length > MAX_COLUMNAS) return;
+      if (!Array.isArray(d.filas)) return;
+
+      var vieja = libro.getSheetByName(d.hoja);
+      if (vieja) vieja.setName(d.hoja + ' respaldo ' + sello);
+
+      var hoja = libro.insertSheet(d.hoja);
+      var enc = d.encabezados.map(String);
+      hoja.getRange(1, 1, 1, enc.length).setValues([enc]).setFontWeight('bold');
+      hoja.setFrozenRows(1);
+      if (d.filas.length) {
+        var matriz = d.filas.map(function (f) {
+          return enc.map(function (c) { return limpiar(f[c]); });
+        });
+        hoja.getRange(2, 1, matriz.length, enc.length).setValues(matriz);
+      }
+      hechas.push(d.hoja + ' (' + d.filas.length + ' filas)');
+    });
+    return { ok: true, resumen: hechas.join(', ') || 'no había filas que escribir' };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function limpiar(v) {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'number' || typeof v === 'boolean') return v;
+  var s = String(v).slice(0, 2000);
+  return /^[=+\-@]/.test(s) ? "'" + s : s;
+}

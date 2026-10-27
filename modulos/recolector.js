@@ -31,6 +31,12 @@ function valorDe(entrada) {
     return sel && sel.value ? sel.value : undefined;
   }
 
+  if (q.t === "largo") {
+    const ta = el.querySelector("textarea");
+    const v = ta ? ta.value.trim().toLocaleUpperCase("es-CO") : "";
+    return v || undefined;
+  }
+
   if (q.t === "text" || q.t === "inst") {
     const inp = el.querySelector('input[type="text"]');
     const v = inp ? inp.value.trim().toLocaleUpperCase("es-CO") : "";
