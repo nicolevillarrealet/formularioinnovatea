@@ -10,6 +10,10 @@
      show  función (respuestas) => bool, para preguntas condicionales
      opt   true si la pregunta es opcional
 
+   Cada sección es una capa (un paso) del formulario. Por eso el formulario
+   de rectores se divide en cuatro partes: así nadie enfrenta 28 preguntas
+   de una vez. El orden de las columnas en la hoja no cambia.
+
    El formulario de docentes se arma en cuatro bloques porque las
    secciones 2 a 4 se repiten una vez por cada estudiante reportado. */
 
@@ -22,12 +26,13 @@ export const RECTORES={
   sections:[{title:"Datos de quien responde",hint:"Solo la coordinación del proyecto conoce estos datos. No aparecen en los informes.",qs:[
     {id:"rn",n:"A",t:"text",l:"Nombre completo"},
     {id:"rc",n:"B",t:"text",l:"Correo electrónico o celular de contacto",opt:true},
-  ]},{title:"Formulario 1. Rectores", qs:[
+  ]},{title:"Parte 1. La institución educativa", qs:[
     {id:"r1",n:1,t:"select",l:"¿En qué municipio se encuentra la institución educativa?",o:MUNICIPIOS},
     {id:"r2",n:2,t:"inst",l:"¿Cuál es la institución educativa?",dep:"r1"},
     {id:"r3",n:3,t:"radio",l:"¿Cuál es su cargo?",o:["Rector","Director rural","Coordinador","Otro directivo autorizado"]},
     {id:"r4",n:4,t:"radio",l:"¿Cuál es la zona de cobertura de la institución educativa?",o:["Urbana","Rural","Ambas"]},
     {id:"r5",n:5,t:"num",l:"¿Cuántos estudiantes están matriculados en básica primaria?"},
+  ]},{title:"Parte 2. Población estudiantil", qs:[
     {id:"r6",n:6,t:"radio",l:"¿La institución tiene estudiantes con diagnóstico de autismo reportado?",o:["Sí","No","Información no disponible"]},
     {id:"r7",n:7,t:"num",l:"¿Cuántos estudiantes tienen diagnóstico de autismo con soporte documental disponible?",show:yes("r6")},
     {id:"r8",n:8,t:"num",l:"¿Cuántos tienen diagnóstico de autismo reportado por la familia, sin soporte documental disponible?",show:yes("r6")},
@@ -40,6 +45,7 @@ export const RECTORES={
     {id:"r15",n:15,t:"multi",l:"¿Qué condiciones del neurodesarrollo están reportadas en la institución?",o:["Autismo","TDAH","Discapacidad intelectual","Trastornos del lenguaje o comunicación","Trastornos del aprendizaje","Tics o Tourette","Otras","Ninguna"],x:"Ninguna"},
     {id:"r16",n:16,t:"num",l:"¿Cuántos estudiantes tienen un PIAR elaborado?"},
     {id:"r17",n:17,t:"num",l:"¿Cuántos estudiantes están registrados en SIMAT con alguna discapacidad?"},
+  ]},{title:"Parte 3. Apoyos y articulación con salud", qs:[
     {id:"r18",n:18,t:"radio",l:"¿Se han identificado estudiantes que requieren orientación para valoración profesional?",o:SNS},
     {id:"r19",n:19,t:"radio",l:"¿La institución cuenta con docentes de apoyo pedagógico?",o:SN},
     {id:"r20",n:20,t:"radio",l:"¿La institución cuenta con orientador escolar?",o:SN},
@@ -47,6 +53,7 @@ export const RECTORES={
     {id:"r22",n:22,t:"multi",l:"¿Qué materiales o tecnologías de apoyo están disponibles?",o:["Apoyos visuales","Comunicación aumentativa o alternativa","Recursos digitales","Material sensorial","Material adaptado","Ninguno"],x:"Ninguno"},
     {id:"r23",n:23,t:"radio",l:"¿Existe una ruta institucional de orientación y remisión hacia servicios de salud?",o:["Sí","No","En construcción"]},
     {id:"r24",n:24,t:"radio",l:"¿Cuál es la principal dificultad de acceso a valoración en salud que conoce la institución?",o:["Distancia","Costos","Falta de especialistas","Trámites con EPS","Desconocimiento","No sabe"]},
+  ]},{title:"Parte 4. Formación y necesidades institucionales", qs:[
     {id:"r25",n:25,t:"radio",l:"¿La institución ha desarrollado capacitaciones sobre autismo o neurodivergencias durante el año lectivo?",o:SNS},
     {id:"r26",n:26,t:"radio",l:"¿Cuántas capacitaciones se han desarrollado?",o:["1","2","3","4","5 o más"],show:yes("r25")},
     {id:"r27",n:27,t:"multi",l:"¿Qué entidades han participado en estas capacitaciones?",o:["Gobernación","Alcaldía","Instituciones de educación superior","Entidades de salud","Organizaciones sociales","Otras"],show:yes("r25")},

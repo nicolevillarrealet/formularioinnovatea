@@ -1,9 +1,8 @@
 /* main.js — Controlador principal. Es el único archivo que se enlaza
    desde WordPress:
 
-     <div id="innovatea-app"></div>
      <script type="module"
-       src="https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@main/main.js"></script>
+       src="https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@v1.1.0/main.js"></script>
 
    Su trabajo es coordinar los módulos, no contener lógica propia:
      ui.js           dibuja y avisa cuando el usuario actúa
@@ -38,18 +37,21 @@ function cargarEstilos() {
 }
 
 function contenedor() {
-  const existente = document.getElementById("innovatea-app");
-  if (existente) return existente;
-
-  // Basta con la etiqueta <script>: el contenedor se crea justo donde está,
-  // para que el formulario aparezca en el lugar del bloque de WordPress.
-  // (En un módulo document.currentScript es null, así que la etiqueta se
-  // localiza comparando su src con la URL de este propio archivo.)
-  const el = document.createElement("div");
-  el.id = "innovatea-app";
-  const propio = [...document.querySelectorAll("script[src]")].find((s) => s.src === import.meta.url);
-  if (propio && propio.parentNode) propio.parentNode.insertBefore(el, propio);
-  else document.body.append(el);
+  let el = document.getElementById("innovatea-app");
+  if (!el) {
+    // Basta con la etiqueta <script>: el contenedor se crea justo donde está,
+    // para que el formulario aparezca en el lugar del bloque de WordPress.
+    // (En un módulo document.currentScript es null, así que la etiqueta se
+    // localiza comparando su src con la URL de este propio archivo.)
+    el = document.createElement("div");
+    el.id = "innovatea-app";
+    const propio = [...document.querySelectorAll("script[src]")].find((s) => s.src === import.meta.url);
+    if (propio && propio.parentNode) propio.parentNode.insertBefore(el, propio);
+    else document.body.append(el);
+  }
+  // "alignwide" es la clase con la que WordPress deja salir un bloque del
+  // ancho de contenido angosto; sin ella el tema lo encoge y lo centra.
+  el.classList.add("alignwide");
   return el;
 }
 
