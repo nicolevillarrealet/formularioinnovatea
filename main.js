@@ -2,13 +2,14 @@
    desde WordPress:
 
      <script type="module"
-       src="https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@v1.1.0/main.js"></script>
+       src="https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@v1.3.0/main.js"></script>
 
    Su trabajo es coordinar los módulos, no contener lógica propia:
      ui.js           dibuja y avisa cuando el usuario actúa
      recolector.js   lee el DOM en el momento del envío
      transformador.js limpia, valida y arma las filas de la hoja
      exportador.js   manda las filas a Google Sheets
+     acceso.js       verificación del correo con un código de 6 dígitos
 
    La página pública solo escribe. El panel de resultados vive aparte, en
    un Web App privado de Apps Script protegido con cuenta de Google, para
@@ -17,8 +18,9 @@
 import { CONFIG } from "./config.js";
 import * as ui from "./modulos/ui.js";
 import { extraerDatosDelDOM } from "./modulos/recolector.js";
-import { limpiarDatos } from "./modulos/transformador.js";
+import { limpiarDatos, aFilas } from "./modulos/transformador.js";
 import { enviarASheets, reintentarPendientes, pendientes } from "./modulos/exportador.js";
+import { montarAcceso } from "./modulos/acceso.js";
 
 /* La base se deduce de la ubicación de este archivo, de modo que los
    estilos y la imagen salen del mismo origen sin configurar nada. */
@@ -56,6 +58,27 @@ function contenedor() {
 }
 
 /* =====================================================================
+   Verificación del correo
+   ===================================================================== */
+
+const conCorreo = config.VERIFICAR_CORREO !== false;
+let acceso = null;     // módulo de verificación
+let sesion = null;     // { correo, pase, usadas } cuando el correo está verificado
+
+function verificacionCorreo() {
+  const cont = ui.contenedorAcceso();
+  cont.hidden = false;
+  acceso = montarAcceso(cont, config, {
+    antesDePedir: () => ui.autorizo() ? "" : "Primero marque la autorización de tratamiento de datos.",
+    alCambiar: (s) => {
+      sesion = s;
+      ui.marcarUsadas(s ? s.usadas : []);
+      if (s) ui.avisoInicio("");
+    },
+  });
+}
+
+/* =====================================================================
    Envío de una encuesta
    ===================================================================== */
 
@@ -70,16 +93,33 @@ async function alEnviar(rol) {
   if (!resultado.ok) {
     // Primero se navega (eso limpia el mensaje anterior) y luego se avisa.
     if (resultado.faltantes.length) ui.marcarFaltantes(resultado.faltantes);
-    else ui.irA(".fin-ficha");
+    else ui.irA(".inicio-ficha");
     ui.mensaje(resultado.mensaje);
     return;
   }
 
-  // 3. Enviar a la hoja de cálculo.
+  // 3. El pase del correo verificado acompaña al envío.
+  let verificacion = {};
+  if (conCorreo) {
+    sesion = acceso ? acceso.sesion() : null;
+    if (!sesion) {
+      ui.mensaje("La verificación de su correo venció. Salga al inicio, verifique su correo de nuevo y vuelva: sus respuestas no se pierden.");
+      return;
+    }
+    verificacion = { pase: sesion.pase };
+    // El servidor lo vuelve a poner a partir del pase; aquí es para que
+    // las filas salgan completas también en la cola sin conexión.
+    resultado.registro.correo_verificado = sesion.correo;
+    resultado.destinos = aFilas(resultado.registro);
+  }
+
+  // 4. Enviar a la hoja de cálculo.
   ui.bloquearEnvio(true, "Enviando…");
   try {
-    const envio = await enviarASheets(resultado.registro, resultado.destinos, config);
+    const envio = await enviarASheets(resultado.registro, resultado.destinos, config, verificacion);
     ui.limpiarBorrador(rol);
+    // En un computador compartido, la siguiente persona verifica su propio correo.
+    if (acceso) acceso.cerrar();
     if (envio.ok) {
       ui.finalizar();
     } else {
@@ -105,8 +145,17 @@ function iniciar() {
   ui.montar(raiz, config);
   ui.iniciarPantallaBienvenida();
 
-  raiz.addEventListener("innovatea:rol", (e) => ui.renderizarFormulario(e.detail.rol));
+  raiz.addEventListener("innovatea:rol", (e) => {
+    if (conCorreo && !sesion) {
+      ui.avisoInicio("Antes de comenzar, verifique su correo con el código que le enviaremos.");
+      ui.contenedorAcceso().scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    ui.renderizarFormulario(e.detail.rol, { correo: sesion ? sesion.correo : "" });
+  });
   raiz.addEventListener("innovatea:enviar", (e) => alEnviar(e.detail.rol));
+
+  if (conCorreo) verificacionCorreo();
 
   // Encuestas que quedaron sin salir por falta de conexión.
   if (pendientes()) {

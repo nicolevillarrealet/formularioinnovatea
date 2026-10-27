@@ -24,25 +24,29 @@
      regla     cualquier otra condición; devuelve el mensaje o null. */
 
 import { GRADOS } from "./catalogos.js";
+import { INDICE } from "./preguntas.js";
 
 const NA = "Información no disponible";
 const n = (a, k) => { const v = Number(a?.[k]); return Number.isFinite(v) ? v : 0; };
 const si = (a, k) => a?.[k] === "Sí";
+/* Número visible de una pregunta. Los mensajes lo toman de preguntas.js,
+   así que si se renumera el instrumento los mensajes siguen correctos. */
+const P = (id) => INDICE[id]?.n;
 
 /* ---------- Rectores ---------- */
 
 const autismoRector = (a) => n(a, "r7") + n(a, "r8");
 const deMatricula = (a) => ({
   v: n(a, "r5"),
-  m: `No puede ser mayor que la matrícula de básica primaria (pregunta 5): ${n(a, "r5")}.`,
+  m: `No puede ser mayor que la matrícula de básica primaria (pregunta ${P("r5")}): ${n(a, "r5")}.`,
 });
 const OTRAS_R15 = ["Discapacidad intelectual", "Trastornos del lenguaje o comunicación",
   "Trastornos del aprendizaje", "Tics o Tourette", "Otras"];
 
 /* ---------- Docentes ---------- */
 
-/* Equivalencias entre las opciones de la pregunta 8 (grupo) y las de la
-   pregunta 23 (ficha), que están redactadas distinto. */
+/* Equivalencias entre las opciones de la pregunta de condiciones del
+   grupo (d8) y las de la ficha (e23), que están redactadas distinto. */
 const D8_A_E23 = {
   "TDAH": "TDAH",
   "Discapacidad intelectual": "Discapacidad intelectual",
@@ -54,22 +58,16 @@ const D8_A_E23 = {
 const E23 = ["Autismo", "TDAH", "Discapacidad intelectual", "Trastornos del lenguaje o comunicación",
   "Trastornos específicos del aprendizaje", "Tics o Tourette", "Otra", "Ninguna"];
 
-/** Fichas anteriores a la i que ya tienen autismo marcado. Se cuentan
-    solo las anteriores para que el resultado no dependa del orden en que
-    se revisan las fichas. */
-const autismoEnFichasPrevias = (c) =>
-  (c.S || []).slice(0, c.i ?? 0).filter((f) => (f.e23 || []).includes("Autismo")).length;
-
-/** Condiciones que tiene sentido marcar en una ficha según lo que el
-    docente reportó de su grupo (preguntas 5 a 8). */
+/** Condiciones que se pueden marcar en una ficha. La ficha es solo para
+    estudiantes con autismo, así que "Autismo" va siempre; las demás solo
+    si el docente reportó esas condiciones en su grupo (d7, d8), porque
+    pueden presentarse a la vez que el autismo. */
 function permitidasEnFicha(c) {
   const A = c.A;
-  const p = new Set();
-  const cupoLleno = si(A, "d5") && n(A, "d6") > 0 && autismoEnFichasPrevias(c) >= n(A, "d6");
-  if ((si(A, "d5") && !cupoLleno) || A.d5 === "No sabe") p.add("Autismo");
+  const p = new Set(["Autismo"]);
   if (si(A, "d7")) (A.d8?.length ? A.d8 : Object.keys(D8_A_E23)).forEach((o) => p.add(D8_A_E23[o]));
   else if (A.d7 === "No sabe") Object.values(D8_A_E23).forEach((o) => p.add(o));
-  return { p, cupoLleno };
+  return p;
 }
 
 /* =====================================================================
@@ -84,23 +82,23 @@ const R = {
     chips: true,
     max: (a) => {
       const v = Math.max(0, n(a, "r5") - n(a, "r7"));
-      return { v, m: `Con ${n(a, "r5")} matriculados y ${n(a, "r7")} ya contados en la pregunta 7, aquí el máximo es ${v}.` };
+      return { v, m: `Con ${n(a, "r5")} matriculados y ${n(a, "r7")} ya contados en la pregunta ${P("r7")}, aquí el máximo es ${v}.` };
     },
     min: (a) => si(a, "r6") && n(a, "r7") === 0
-      ? { v: 1, m: "En la pregunta 6 respondió que sí hay estudiantes con autismo y en la 7 escribió 0: aquí debe haber al menos 1." }
+      ? { v: 1, m: `En la pregunta ${P("r6")} respondió que sí hay estudiantes con autismo y en la ${P("r7")} escribió 0: aquí debe haber al menos 1.` }
       : null,
   },
   r9: { chips: true, max: deMatricula },
   r10: { chips: true, max: deMatricula },
   r11: {
     chips: true,
-    max: (a) => ({ v: autismoRector(a), m: `No puede ser mayor que el total de estudiantes con autismo (preguntas 7 y 8): ${autismoRector(a)}.` }),
+    max: (a) => ({ v: autismoRector(a), m: `No puede ser mayor que el total de estudiantes con autismo (preguntas ${P("r7")} y ${P("r8")}): ${autismoRector(a)}.` }),
   },
   r12: {
     chips: true,
     max: (a) => {
       const v = Math.max(0, autismoRector(a) - n(a, "r11"));
-      return { v, m: `Con ${autismoRector(a)} estudiante(s) con autismo y ${n(a, "r11")} de sexo femenino (pregunta 11), aquí el máximo es ${v}.` };
+      return { v, m: `Con ${autismoRector(a)} estudiante(s) con autismo y ${n(a, "r11")} de sexo femenino (pregunta ${P("r11")}), aquí el máximo es ${v}.` };
     },
   },
   r13: {
@@ -119,7 +117,7 @@ const R = {
       return { forzar, vetar };
     },
     regla: (a) => n(a, "r10") > 0 && !(a.r15 || []).some((o) => OTRAS_R15.includes(o))
-      ? `En la pregunta 10 reportó ${n(a, "r10")} estudiante(s) con otras condiciones: marque cuál o cuáles.`
+      ? `En la pregunta ${P("r10")} reportó ${n(a, "r10")} estudiante(s) con otras condiciones: marque cuál o cuáles.`
       : null,
   },
   r16: { chips: true, max: deMatricula },
@@ -137,17 +135,17 @@ const R = {
   d4: { min: () => ({ v: 1, m: "Escriba al menos 1: es el número de estudiantes que tiene a cargo." }) },
   d6: {
     chips: true,
-    max: (a) => ({ v: n(a, "d4"), m: `No puede ser mayor que los estudiantes a su cargo (pregunta 4): ${n(a, "d4")}.` }),
-    min: (a) => si(a, "d5") ? { v: 1, m: "En la pregunta 5 respondió que sí tiene estudiantes con autismo: debe ser al menos 1." } : null,
+    max: (a) => ({ v: n(a, "d4"), m: `No puede ser mayor que los estudiantes a su cargo (pregunta ${P("d4")}): ${n(a, "d4")}.` }),
+    min: (a) => si(a, "d5") ? { v: 1, m: `En la pregunta ${P("d5")} respondió que sí tiene estudiantes con autismo: debe ser al menos 1.` } : null,
   },
   d34: {
     chips: true,
-    min: (a) => si(a, "d33") ? { v: 1, m: "En la pregunta 33 respondió que sí conoció casos: debe ser al menos 1, o elija «Información no disponible»." } : null,
+    min: (a) => si(a, "d33") ? { v: 1, m: `En la pregunta ${P("d33")} respondió que sí conoció casos: debe ser al menos 1, o elija «Información no disponible».` } : null,
   },
 
   /* --- Ficha de estudiante --- */
   e11: {
-    // Si el docente tiene un solo grado a cargo (pregunta 3), es ese.
+    // Si el docente tiene un solo grado a cargo (d3), es ese.
     opc: (s, c) => GRADOS.includes(c.A.d3)
       ? { forzar: [c.A.d3], vetar: GRADOS.filter((g) => g !== c.A.d3) }
       : null,
@@ -160,18 +158,16 @@ const R = {
       return null;
     },
   },
+  e22: {
+    // La ficha es de un estudiante con diagnóstico de autismo reportado.
+    opc: () => ({ forzar: [], vetar: ["Sin diagnóstico reportado"] }),
+  },
   e23: {
+    // "Autismo" siempre; "Ninguna" nunca. Si el docente no reportó otras
+    // condiciones, la pregunta queda resuelta sola y se salta.
     opc: (s, c) => {
-      const { p } = permitidasEnFicha(c);
-      const vetar = E23.filter((o) => !p.has(o)); // "Ninguna" siempre: la ficha es de un estudiante con condición
-      return { forzar: p.size === 1 ? [...p] : [], vetar };
-    },
-    regla: (s, c) => {
-      const { p, cupoLleno } = permitidasEnFicha(c);
-      if (p.size) return null;
-      return cupoLleno
-        ? `Ya registró ${n(c.A, "d6")} ficha(s) de estudiantes con autismo, el total de la pregunta 6, y no reportó otras condiciones (pregunta 7). Quite esta ficha o corrija esas preguntas.`
-        : "Según las preguntas 5 y 7, ningún estudiante de su grupo tiene una condición reportada. Corrija esas preguntas o quite esta ficha.";
+      const p = permitidasEnFicha(c);
+      return { forzar: ["Autismo"], vetar: E23.filter((o) => !p.has(o)) };
     },
   },
   e30: {
@@ -227,22 +223,10 @@ export function errorDe(q, s, c) {
   return r.regla ? r.regla(s, c) : null;
 }
 
-/** Cuántas fichas de estudiante caben según lo que reportó el docente. */
-export function maxFichas(A) {
-  if (A.d7 === "No" && si(A, "d5")) {
-    const v = n(A, "d6");
-    return { v, m: `Reportó ${v} estudiante(s) con autismo (pregunta 6) y ninguno con otras condiciones (pregunta 7), así que puede haber hasta ${v} ficha(s).` };
-  }
-  const v = n(A, "d4");
-  return { v, m: `Tiene ${v} estudiante(s) a cargo (pregunta 4), así que puede haber hasta ${v} ficha(s).` };
+/** Fichas de caracterización: una por cada estudiante con autismo que el
+    docente reportó (d6), y ninguna si no reportó autismo. */
+export function numFichas(A) {
+  return si(A, "d5") ? Math.max(0, Math.floor(n(A, "d6"))) : 0;
 }
 
-/** Fichas obligatorias: una por cada estudiante con autismo que el
-    docente reportó en la pregunta 6 (al menos una si hay fichas). */
-export function minFichas(A) {
-  if (si(A, "d5") && n(A, "d6") > 0) {
-    const v = n(A, "d6");
-    return { v, m: `En la pregunta 6 reportó ${v} estudiante(s) con autismo, así que debe diligenciar ${v} ficha(s).` };
-  }
-  return { v: 1, m: "Debe diligenciar al menos una ficha de estudiante." };
-}
+export const preguntaFichas = () => P("d6");

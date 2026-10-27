@@ -11,6 +11,9 @@
 
 import { descargarCsv } from "./exportador.js";
 import { aFilas } from "./transformador.js";
+import { INDICE } from "./preguntas.js";
+
+const num = (id) => INDICE[id]?.n;
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -19,7 +22,9 @@ let registros = [];
 /**
  * Prepara el panel dentro de un contenedor.
  * @param {HTMLElement} contenedor
- * @param {{urlHoja?:string}} opciones
+ * @param {{urlHoja?:string, reconstruir?:Function}} opciones
+ *   reconstruir(destinos) → Promise: reescribe las pestañas de la hoja con
+ *   el formato actual. Lo provee panel.html con google.script.run.
  * @returns {{actualizar:Function, error:Function}} para alimentarlo con datos
  */
 export function montar(contenedor, opciones = {}) {
@@ -27,7 +32,9 @@ export function montar(contenedor, opciones = {}) {
     <div class="actions" style="margin-top:0">
       ${opciones.urlHoja ? `<a class="btn small" href="${esc(opciones.urlHoja)}" target="_blank" rel="noopener">Abrir hoja de cálculo</a>` : ""}
       <button class="btn ghost small" type="button" id="pCsv">Descargar respaldo CSV</button>
+      ${opciones.reconstruir ? `<button class="btn ghost small" type="button" id="pRehacer">Reorganizar hojas con el formato actual</button>` : ""}
     </div>
+    <div id="pRehacerMsg"></div>
     <h2 style="font-size:1.8rem;margin-top:18px">Panel de resultados</h2>
     <p class="hint" id="pState">Cargando respuestas…</p>
     <div id="pBody"></div>`;
@@ -37,10 +44,51 @@ export function montar(contenedor, opciones = {}) {
     descargarCsv(filas, `innovatea-respaldo-${new Date().toISOString().slice(0, 10)}.csv`);
   });
 
+  const rehacer = contenedor.querySelector("#pRehacer");
+  if (rehacer) rehacer.addEventListener("click", async () => {
+    const msg = contenedor.querySelector("#pRehacerMsg");
+    // Pide una segunda pulsación: reescribe las pestañas de la hoja.
+    if (!rehacer.dataset.armed) {
+      rehacer.dataset.armed = "1";
+      rehacer.textContent = "¿Seguro? Toque de nuevo para reorganizar";
+      msg.innerHTML = `<div class="notice info">Se rearmarán las pestañas Rectores, Docentes y Estudiantes a partir de todas las respuestas guardadas, con la numeración actual y una columna por opción en las preguntas de varias respuestas. Las pestañas actuales no se borran: quedan renombradas como respaldo.</div>`;
+      setTimeout(() => { delete rehacer.dataset.armed; rehacer.textContent = "Reorganizar hojas con el formato actual"; }, 8000);
+      return;
+    }
+    delete rehacer.dataset.armed;
+    rehacer.disabled = true;
+    rehacer.textContent = "Reorganizando…";
+    try {
+      const r = await opciones.reconstruir(destinosCompletos(registros));
+      msg.innerHTML = `<div class="notice info">Listo: ${esc(r.resumen || "hojas reorganizadas")}.</div>`;
+    } catch (e) {
+      msg.innerHTML = `<div class="notice bad">No se pudo reorganizar: ${esc(e.message || e)}</div>`;
+    } finally {
+      rehacer.disabled = false;
+      rehacer.textContent = "Reorganizar hojas con el formato actual";
+    }
+  });
+
   return {
     actualizar(nuevos) { registros = nuevos || []; pintar(contenedor); },
     error(mensaje) { contenedor.querySelector("#pState").textContent = "No se pudieron cargar las respuestas: " + mensaje; },
   };
+}
+
+/** Todas las respuestas guardadas convertidas a filas, agrupadas por
+    pestaña, en orden de envío. Las columnas son la unión de las de todos
+    los registros (todas comparten el mismo formato). */
+export function destinosCompletos(lista) {
+  const porHoja = new Map();
+  [...lista]
+    .sort((a, b) => String(a.enviado).localeCompare(String(b.enviado)))
+    .forEach((reg) => aFilas(reg).forEach((d) => {
+      const h = porHoja.get(d.hoja) || { hoja: d.hoja, encabezados: [], filas: [] };
+      d.encabezados.forEach((e) => { if (!h.encabezados.includes(e)) h.encabezados.push(e); });
+      h.filas.push(...d.filas);
+      porHoja.set(d.hoja, h);
+    }));
+  return [...porHoja.values()];
 }
 
 /* ---------- Conteos ---------- */
@@ -88,7 +136,7 @@ function pintar(contenedor) {
     <div class="tile"><b>${R.length}</b><span>Encuestas de rectores</span></div>
     <div class="tile"><b>${D.length}</b><span>Encuestas de docentes</span></div>
     <div class="tile"><b>${conSoporte + sinSoporte}</b><span>Estudiantes autistas reportados por rectores</span></div>
-    <div class="tile"><b>${fichas}</b><span>Fichas de estudiante (docentes)</span></div>
+    <div class="tile"><b>${fichas}</b><span>Fichas de caracterización (docentes)</span></div>
    </div>
    <p class="hint" style="margin-top:8px">De los reportados por rectores: ${conSoporte} con soporte documental y ${sinSoporte} informados por la familia sin soporte.</p>
 
@@ -107,8 +155,8 @@ function pintar(contenedor) {
       || '<tr><td colspan="6" class="hint">Sin respuestas todavía.</td></tr>'}
    </tbody></table></div>
 
-   <h2>Necesidades institucionales prioritarias (rectores, p. 28)</h2>${barras(contar(R.map((r) => r.respuestas?.r28)))}
-   <h2>Situación diagnóstica de los estudiantes (docentes, p. 22)</h2>${barras(contar(est.map((e) => e.e22)))}
-   <h2>Dificultades de acceso a salud (docentes, p. 27)</h2>${barras(contar(est.map((e) => e.e27)))}
-   <h2>Temas de formación solicitados (docentes, p. 44)</h2>${barras(contar(D.map((r) => r.respuestas?.d44)))}`;
+   <h2>Necesidades institucionales prioritarias (rectores, p. ${num("r28")})</h2>${barras(contar(R.map((r) => r.respuestas?.r28)))}
+   <h2>Situación diagnóstica de los estudiantes (fichas, ${num("e22")})</h2>${barras(contar(est.map((e) => e.e22)))}
+   <h2>Dificultades de acceso a salud (fichas, ${num("e27")})</h2>${barras(contar(est.map((e) => e.e27)))}
+   <h2>Temas de formación solicitados (docentes, p. ${num("d44")})</h2>${barras(contar(D.map((r) => r.respuestas?.d44)))}`;
 }
