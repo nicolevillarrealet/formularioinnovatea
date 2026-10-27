@@ -37,14 +37,14 @@ const yes = (k) => (a) => a[k] === "Sí";
 
 export const RECTORES={
   key:"rectores", title:"Rectores — Caracterización institucional y poblacional",
-  sections:[{title:"Datos de quien responde",hint:"Solo la coordinación del proyecto conoce estos datos. No aparecen en los informes.",qs:[
+  sections:[{title:"Datos de quien responde",qs:[
     {id:"rn",n:"A",t:"text",l:"Nombre completo"},
     {id:"rc",n:"B",t:"text",l:"Correo electrónico o celular de contacto",opt:true},
   ]},{title:"Parte 1. La institución educativa", qs:[
     {id:"r1",n:1,t:"select",l:"¿En qué municipio se encuentra la institución educativa?",o:MUNICIPIOS,buscar:"municipios"},
     {id:"r2",n:2,t:"inst",l:"¿Cuál es la institución educativa?",dep:"r1"},
     {id:"r3",n:3,t:"radio",l:"¿Cuál es su cargo?",o:["Rector","Director rural","Coordinador","Otro directivo autorizado"]},
-    {id:"r4",n:4,t:"radio",l:"¿Cuál es la zona de cobertura de la institución educativa?",o:["Urbana","Rural","Ambas"]},
+    {id:"r4",n:4,t:"radio",l:"¿Cuál es la zona de cobertura de la institución educativa?",o:["Urbana","Rural"]},
     {id:"r5",n:5,t:"num",l:"¿Cuántos estudiantes están matriculados en básica primaria?"},
   ]},{title:"Parte 2. Población estudiantil", qs:[
     {id:"r6",n:6,t:"radio",l:"¿La institución tiene estudiantes con diagnóstico de autismo reportado?",o:["Sí","No","Información no disponible"]},
@@ -77,7 +77,7 @@ export const RECTORES={
 };
 
 /* ---------- Formulario 2: Docentes ---------- */
-export const DOC_ID={title:"Datos de quien responde",hint:"Solo la coordinación del proyecto conoce estos datos. No aparecen en los informes.",qs:[
+export const DOC_ID={title:"Datos de quien responde",qs:[
   {id:"dn",n:"A",t:"text",l:"Nombre completo del docente"},
   {id:"dc",n:"B",t:"text",l:"Correo electrónico o celular de contacto",opt:true},
 ]};

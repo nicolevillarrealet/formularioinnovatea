@@ -176,6 +176,7 @@
 #innovatea-app .acceso{margin-top:14px;padding:16px 18px;border:1.5px solid var(--line);border-radius:var(--r);background:var(--surface);display:grid;gap:10px}
 #innovatea-app .acceso.acc-ok{border-color:var(--ok);padding:12px 16px}
 #innovatea-app .acc-titulo{font-weight:700}
+#innovatea-app .acc-indicacion{padding:10px 12px;border-left:4px solid var(--brand);border-radius:6px;background:color-mix(in srgb,var(--brand) 6%,var(--surface))}
 #innovatea-app .acc-fila{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 #innovatea-app .acc-fila input{flex:1 1 240px;max-width:420px;padding:11px 12px;border:1.5px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit}
 #innovatea-app .acc-fila input:focus{border-color:var(--brand);outline:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 18%,transparent)}
