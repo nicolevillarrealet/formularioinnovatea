@@ -16,14 +16,14 @@ Sheets.
 En la página donde va la encuesta, agregue un bloque **HTML personalizado** y pegue esto:
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@v1.4.1/main.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@v1.4.2/main.js"></script>
 ```
 
 Eso es todo. El formulario se monta justo donde esté el bloque; la etiqueta carga el
 controlador y el controlador trae por su cuenta los estilos y los demás módulos. No hace falta
 plugin, ni FTP, ni subir archivos al hosting.
 
-**Para publicar un cambio:** `git tag v1.4.2 && git push origin v1.4.2`, y cambie el número en
+**Para publicar un cambio:** `git tag v1.4.3 && git push origin v1.4.3`, y cambie el número en
 la línea de WordPress.
 
 > **Por qué una etiqueta y no `@main`.** jsDelivr le dice al navegador que guarde estos archivos
@@ -72,9 +72,9 @@ institucional). Quien decide es `Codigo.gs`, no el navegador:
    volver sin pedir otro código.
 2. Al enviar, lee el correo del pase —no el que diga el navegador— y lo escribe en la columna
    `correo_verificado`. Un pase alterado o vencido se rechaza.
-3. **Una encuesta por correo:** cada correo puede enviar una de rector y una de docente. La
-   pestaña `_correos` lleva la cuenta; si el correo ya envió esa encuesta, su tarjeta aparece
-   bloqueada desde el inicio y el servidor rechaza un segundo envío.
+3. **Una encuesta por correo:** cada correo puede responder una sola, de rector **o** de
+   docente. La pestaña `_correos` lleva la cuenta; si el correo ya respondió cualquiera de las
+   dos, ambas tarjetas aparecen bloqueadas desde el inicio y el servidor rechaza otro envío.
 4. **Frenos contra abuso:** un código por correo cada minuto y máximo 5 al día; máximo 300 por
    hora en total; cada código vence a los 15 minutos y admite 5 intentos. Workspace permite unos
    1 500 correos al día.

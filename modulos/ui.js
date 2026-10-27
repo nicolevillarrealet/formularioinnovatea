@@ -1177,15 +1177,22 @@ export const contenedorAcceso = () => $("#acceso");
 /** ¿Marcó la autorización de tratamiento de datos? */
 export const autorizo = () => $("#acepto").checked;
 
-/** Bloquea las tarjetas de las encuestas que el correo ya envió. */
+/** Cada correo responde una sola encuesta: si ya envió una (de rector o
+    de docente), se bloquean las dos tarjetas y se dice cuál envió. */
 export function marcarUsadas(tipos) {
   const nombre = { rectores: "rector", docentes: "docente" };
+  const enviadas = tipos || [];
+  const bloqueado = enviadas.length > 0;
   raiz.querySelectorAll("[data-form]").forEach((b) => {
-    const usada = (tipos || []).includes(nombre[b.dataset.form]);
-    b.classList.toggle("usada", usada);
-    b.disabled = usada;
-    b.querySelector(".go").textContent = usada ? "Ya enviada con este correo" : "Comenzar →";
+    const esta = enviadas.includes(nombre[b.dataset.form]);
+    b.classList.toggle("usada", bloqueado);
+    b.disabled = bloqueado;
+    b.querySelector(".go").textContent = !bloqueado ? "Comenzar →"
+      : esta ? "Ya enviada con este correo" : "No disponible: este correo ya respondió la otra encuesta";
   });
+  avisoInicio(bloqueado
+    ? `Este correo ya respondió la encuesta de <strong>${enviadas[0]}</strong>. Cada correo puede responder una sola encuesta, de rector o de docente. Si necesita responder la otra, use un correo distinto.`
+    : "", "info");
 }
 
 export function mensaje(html, clase = "bad") {

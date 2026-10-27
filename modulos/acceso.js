@@ -52,7 +52,7 @@ export function montarAcceso(contenedor, config, ops) {
     contenedor.innerHTML = `
       <p class="acc-titulo">Verifique su correo para comenzar</p>
       <p class="acc-indicacion"><strong>Use su correo institucional</strong> si lo tiene. Si no tiene uno, use el correo académico que esté usando actualmente y que se encuentre vigente.</p>
-      <p class="hint">Le enviaremos un código de 6 dígitos. Cada correo puede enviar una encuesta de rector y una de docente.</p>
+      <p class="hint">Le enviaremos un código de 6 dígitos. Cada correo puede responder una sola encuesta: la de rector o la de docente.</p>
       <form class="acc-fila" novalidate>
         <label class="sr" for="accCorreo">Correo electrónico</label>
         <input type="email" id="accCorreo" autocomplete="email" inputmode="email" placeholder="nombre@correo.com" value="${esc(valor)}" required>

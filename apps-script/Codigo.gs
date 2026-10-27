@@ -27,8 +27,8 @@
  *  Quien responde escribe su correo, recibe un código de 6 dígitos y lo
  *  escribe en el formulario. Este script comprueba el código y entrega un
  *  "pase" firmado con el correo, que acompaña al envío. Cada correo puede
- *  enviar UNA encuesta de rector y UNA de docente; la pestaña _correos
- *  lleva la cuenta.
+ *  enviar UNA SOLA encuesta, de rector o de docente: quien respondió una
+ *  no puede responder la otra. La pestaña _correos lleva la cuenta.
  *
  *  5. Para que la verificación sea OBLIGATORIA: Configuración del proyecto
  *     (engranaje) → Propiedades de la secuencia de comandos → Agregar
@@ -318,9 +318,11 @@ function registrar(datos, v) {
     // Un reenvío desde la cola de un envío que ya entró no se duplica.
     if (yaRegistrado(libro, r.id)) return { ok: true, id: r.id, repetido: true };
 
-    // Una encuesta de cada tipo por correo verificado.
-    if (v.correo && encuestasDe(v.correo).indexOf(r.tipo) !== -1) {
-      return { ok: false, error: 'El correo ' + v.correo + ' ya envió una encuesta de ' + r.tipo + '. Cada correo puede enviar una sola.' };
+    // Una sola encuesta por correo verificado, sea de rector o de docente.
+    var previas = v.correo ? encuestasDe(v.correo) : [];
+    if (previas.length) {
+      return { ok: false, error: 'El correo ' + v.correo + ' ya envió la encuesta de ' + previas[0] +
+        '. Cada correo puede responder una sola encuesta, de rector o de docente.' };
     }
 
     // El correo lo pone el servidor a partir del pase: el que venga del
