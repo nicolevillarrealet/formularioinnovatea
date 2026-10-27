@@ -37,11 +37,11 @@
   --f-display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
   --f-body:"Atkinson Hyperlegible",ui-sans-serif,system-ui,sans-serif;
   --r:10px;
+  --slide:.42s cubic-bezier(.22,.8,.3,1);
 }
 
 /* El modo oscuro automático queda desactivado a propósito: el bloque vive
-   dentro de una página clara, y un formulario oscuro sobre ella se vería
-   como un parche. Se puede forzar poniendo data-theme="dark" en el div. */
+   dentro de una página clara. Se puede forzar con data-theme="dark". */
 #innovatea-app[data-theme="dark"]{
   --surface:#161f38; --ink:#e7ecf8; --muted:#a2acc6; --line:#2a3556;
   --brand:#8fb0ff; --brand-ink:#0d1530; --sun:#f2b134; --sun-soft:#3a2f17;
@@ -53,8 +53,16 @@
    3. Base del bloque
    ===================================================================== */
 
-/* Fondo transparente: el color lo pone la página que lo contiene. */
+/* Ancho: los temas de bloques de WordPress limitan cada bloque al
+   «ancho de contenido» (a menudo 620–720 px) y lo centran. Aquí el bloque
+   ocupa todo el ancho disponible, hasta el «ancho amplio» del tema
+   (1200 px si el tema no lo define). En el móvil sigue siendo 100 %. */
 #innovatea-app{
+  display:block;
+  width:100%;
+  max-width:var(--wp--style--global--wide-size,1200px)!important;
+  margin-inline:auto!important;
+  box-sizing:border-box;
   background:transparent;
   color:var(--ink);
   font-family:var(--f-body);
@@ -67,20 +75,22 @@
 #innovatea-app img{max-width:100%;height:auto}
 #innovatea-app h1,#innovatea-app h2,#innovatea-app h3{
   font-family:var(--f-display);text-wrap:balance;line-height:1.15;margin:0;color:inherit;font-weight:700}
+#innovatea-app h2:focus{outline:none}
 #innovatea-app button,#innovatea-app input,#innovatea-app select{font:inherit;color:inherit;margin:0}
 #innovatea-app :focus-visible{outline:3px solid var(--focus);outline-offset:2px}
 #innovatea-app p{margin:0}
 
-#innovatea-app .wrap{max-width:720px;margin-inline:auto}
+/* Sin ancho fijo ni márgenes automáticos: el contenido llena el bloque. */
+#innovatea-app .wrap{width:100%;max-width:none;margin-inline:0}
 #innovatea-app .main{padding-block:4px 40px}
-#innovatea-app .titulo{font-size:1.5rem;margin-bottom:4px}
+#innovatea-app .titulo{font-size:clamp(1.35rem,1.1rem + 1vw,1.75rem);margin-bottom:4px}
 
 /* =====================================================================
    4. Selección de encuesta
    ===================================================================== */
 
-#innovatea-app .roles{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-top:14px}
-#innovatea-app .role{display:grid;gap:8px;text-align:left;background:var(--surface);border:1.5px solid var(--line);border-radius:var(--r);padding:20px;cursor:pointer;transition:border-color .15s,transform .15s}
+#innovatea-app .roles{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:16px}
+#innovatea-app .role{display:grid;gap:8px;text-align:left;background:var(--surface);border:1.5px solid var(--line);border-radius:var(--r);padding:clamp(18px,2.4vw,28px);cursor:pointer;transition:border-color .15s,transform .15s}
 #innovatea-app .role:hover{border-color:var(--brand);transform:translateY(-2px)}
 #innovatea-app .role h3{font-size:1.3rem;color:var(--brand)}
 #innovatea-app .role small{color:var(--muted);font-size:.85rem}
@@ -90,20 +100,48 @@
 #innovatea-app .hint{color:var(--muted);font-size:.92rem}
 
 /* =====================================================================
-   5. Formulario
+   5. Barra superior (transparente, sin franja blanca)
    ===================================================================== */
 
-#innovatea-app .topbar{position:sticky;top:0;z-index:5;background:var(--surface);border-bottom:1px solid var(--line);margin-bottom:8px}
-#innovatea-app .topbar .wrap{display:flex;align-items:center;gap:12px;padding-block:10px}
+#innovatea-app .topbar{position:static;background:transparent;border:0;box-shadow:none;margin-bottom:4px}
+#innovatea-app .topbar .wrap{display:flex;align-items:center;gap:12px;padding-block:8px}
 #innovatea-app .topbar strong{font-family:var(--f-display);flex:1;min-width:0;font-weight:700}
-#innovatea-app .bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden;flex:0 0 110px}
+#innovatea-app .bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden;flex:0 0 clamp(90px,18vw,200px)}
 #innovatea-app .bar i{display:block;height:100%;width:0;background:var(--sun);transition:width .25s}
 #innovatea-app .count{font-size:.85rem;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
 
-#innovatea-app .section{margin-top:30px}
-#innovatea-app .section > h2{font-size:1.35rem;color:var(--brand);margin-bottom:4px}
+/* =====================================================================
+   6. Formulario por pasos
+   ===================================================================== */
+
+#innovatea-app .pasos-ind{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin-top:18px;font-size:.88rem;color:var(--muted);font-weight:700}
+#innovatea-app .pasos-ind .seg{display:flex;gap:6px;flex:1;min-width:140px}
+#innovatea-app .pasos-ind .seg i{flex:1;height:4px;border-radius:2px;background:var(--line);transition:background .3s}
+#innovatea-app .pasos-ind .seg i.hecho{background:var(--brand)}
+#innovatea-app .pasos-ind .seg i.actual{background:var(--sun)}
+
+/* Contenedor de capas: recorta lo que entra y sale por los lados. */
+#innovatea-app .pasos{position:relative;overflow:hidden;overflow:clip;margin-top:12px;padding:4px}
+#innovatea-app .paso{background:var(--surface);border:1.5px solid var(--line);border-radius:var(--r);padding:clamp(16px,3vw,36px)}
+#innovatea-app .paso.saliendo{position:absolute;top:4px;left:4px;right:4px;pointer-events:none}
+
+#innovatea-app .entra-der{animation:innovatea-entra-der var(--slide) both}
+#innovatea-app .entra-izq{animation:innovatea-entra-izq var(--slide) both}
+#innovatea-app .sale-izq{animation:innovatea-sale-izq var(--slide) both}
+#innovatea-app .sale-der{animation:innovatea-sale-der var(--slide) both}
+@keyframes innovatea-entra-der{from{transform:translateX(100%);opacity:0}to{transform:none;opacity:1}}
+@keyframes innovatea-entra-izq{from{transform:translateX(-100%);opacity:0}to{transform:none;opacity:1}}
+@keyframes innovatea-sale-izq{from{transform:none;opacity:1}to{transform:translateX(-100%);opacity:0}}
+@keyframes innovatea-sale-der{from{transform:none;opacity:1}to{transform:translateX(100%);opacity:0}}
+
+#innovatea-app .pasos-nav{justify-content:space-between;margin-top:18px}
+#innovatea-app .pasos-nav #next,#innovatea-app .pasos-nav #send{margin-left:auto}
+#innovatea-app .pasos-nav #sendHint{flex-basis:100%;text-align:right}
+
+#innovatea-app .section > h2{font-size:clamp(1.2rem,1rem + .8vw,1.5rem);color:var(--brand);margin-bottom:4px}
 #innovatea-app .section > .hint{margin:0 0 6px}
 #innovatea-app .q{border:0;margin:0;padding:18px 0;border-bottom:1px solid var(--line);display:grid;gap:10px;min-width:0}
+#innovatea-app .section > .q:last-child{border-bottom:0}
 #innovatea-app .q legend,#innovatea-app .q .lab{font-weight:700;padding:0;display:flex;gap:10px;float:none;width:auto}
 #innovatea-app .q .n{flex:none;font-family:var(--f-display);color:var(--brand);font-variant-numeric:tabular-nums;min-width:2ch}
 #innovatea-app .q .multi-note{font-weight:400;color:var(--muted);font-size:.88rem}
@@ -115,10 +153,20 @@
 #innovatea-app .opt input:checked + span{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
 #innovatea-app .opt input:focus-visible + span{outline:3px solid var(--focus);outline-offset:2px}
 
+#innovatea-app .inst{display:grid;gap:6px}
+#innovatea-app .numrow{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 #innovatea-app select,
 #innovatea-app input[type=number],
-#innovatea-app input[type=text]{width:100%;max-width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);box-shadow:none}
+#innovatea-app input[type=text]{width:100%;max-width:640px;padding:11px 12px;border:1.5px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);box-shadow:none}
 #innovatea-app input[type=number]{max-width:180px;font-variant-numeric:tabular-nums}
+
+/* Respuestas en MAYÚSCULAS: opciones, listas y texto escrito. Los textos
+   de ayuda dentro de los campos se dejan como están. */
+#innovatea-app .opt span,
+#innovatea-app select,
+#innovatea-app select option,
+#innovatea-app input[type=text]{text-transform:uppercase;letter-spacing:.02em}
+#innovatea-app input::placeholder{text-transform:none;letter-spacing:normal}
 
 #innovatea-app .q.missing{background:linear-gradient(90deg,color-mix(in srgb,var(--bad) 10%,transparent),transparent)}
 #innovatea-app .q.missing .err{display:block}
@@ -141,15 +189,25 @@
 #innovatea-app .notice.bad{border-color:var(--bad);color:var(--bad)}
 #innovatea-app .notice.info{border-color:var(--brand)}
 
+/* Móvil: botones de navegación a todo el ancho, más fáciles de tocar. */
+@media (max-width:560px){
+  #innovatea-app .pasos{padding:2px}
+  #innovatea-app .paso.saliendo{top:2px;left:2px;right:2px}
+  #innovatea-app .pasos-nav .btn{flex:1 1 0}
+  #innovatea-app .pasos-nav #sendHint{text-align:left}
+  #innovatea-app .topbar strong{display:none}
+  #innovatea-app .bar{flex:1}
+}
+
 /* =====================================================================
-   6. Gracias
+   7. Gracias
    ===================================================================== */
 
 #innovatea-app .thanks{text-align:left;padding-block:40px;display:grid;gap:14px}
 #innovatea-app .thanks h2{font-size:2rem;color:var(--brand)}
 
 /* =====================================================================
-   7. Panel (solo en el Web App privado)
+   8. Panel (solo en el Web App privado)
    ===================================================================== */
 
 #innovatea-app .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:16px}
@@ -167,4 +225,6 @@
 #innovatea-app .brow .track i{display:block;height:100%;background:var(--sun)}
 #innovatea-app .panel h2{font-size:1.3rem;margin-top:30px;color:var(--brand)}
 
-@media (prefers-reduced-motion:reduce){#innovatea-app *{transition:none!important}}
+@media (prefers-reduced-motion:reduce){
+  #innovatea-app *{transition:none!important;animation:none!important}
+}

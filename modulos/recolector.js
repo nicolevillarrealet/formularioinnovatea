@@ -3,6 +3,9 @@
    en pantalla, sin interpretarlos. No filtra preguntas ocultas ni valida:
    de eso se encarga transformador.js.
 
+   Las respuestas escritas a mano (nombre, contacto, institución) se
+   guardan en MAYÚSCULAS, igual que se ven en el formulario.
+
    Entrada:  el registro de campos que publica ui.js.
    Salida:   { general: {...}, estudiantes: [ {...}, ... ] } */
 
@@ -27,7 +30,7 @@ function valorDe(entrada) {
 
   if (q.t === "text" || q.t === "inst") {
     const inp = el.querySelector('input[type="text"]');
-    const v = inp ? inp.value.trim() : "";
+    const v = inp ? inp.value.trim().toLocaleUpperCase("es-CO") : "";
     return v || undefined;
   }
 

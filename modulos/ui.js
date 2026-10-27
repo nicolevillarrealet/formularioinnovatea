@@ -6,7 +6,12 @@
    Eventos emitidos:
      innovatea:rol    detail = { rol }        se eligió rectores | docentes
      innovatea:enviar detail = { rol }        se pulsó "Enviar respuestas"
-     innovatea:panel  detail = {}             se pidió abrir el panel
+
+   El formulario se muestra POR PASOS: cada sección es una capa y solo se ve
+   una a la vez. "Siguiente" valida la capa actual antes de avanzar; la capa
+   nueva entra desde la derecha y la anterior sale hacia la izquierda (al
+   retroceder, al revés). Todas las capas siguen en el DOM, así que
+   recolector.js lee el formulario completo igual que antes.
 
    El estado vivo (respuestas generales y fichas de estudiante) se mantiene
    aquí porque la lógica condicional, la barra de progreso y el borrador
@@ -19,15 +24,22 @@ import {
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
+/* Las respuestas escritas a mano se guardan en mayúsculas, igual que se ven. */
+const mayus = (s) => s.toLocaleUpperCase("es-CO");
+
 let raiz = null;          // contenedor #innovatea-app
 let ajustes = {};         // config recibida de main.js
 let rolActual = null;     // "rectores" | "docentes"
 let A = {};               // respuestas generales
 let S = [];               // fichas de estudiante (docentes)
 let registro = [];        // [{ el, q, store, ambito, indice }]
+let pasos = [];           // elementos .paso, en orden
+let pasoActual = 0;
+let finTransicion = null; // cierra de golpe una transición en curso
 
 const $ = (sel) => raiz.querySelector(sel);
 const emitir = (nombre, detalle) => raiz.dispatchEvent(new CustomEvent(nombre, { detail: detalle || {} }));
+const sinMovimiento = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
 /* =====================================================================
    Estructura de la página
@@ -43,8 +55,7 @@ export function montar(contenedor, config) {
 
 /* La página de WordPress ya trae la imagen, el título de bienvenida y el
    texto de presentación del proyecto, así que el bloque empieza
-   directamente en la elección de encuesta: repetirlos sería duplicar lo
-   que el visitante acaba de leer. */
+   directamente en la elección de encuesta. */
 function plantilla() {
   return `
 <div id="topbar" class="topbar" hidden>
@@ -190,8 +201,7 @@ function campo(q, store, prefijo, ambito, indice) {
     // Campo de institución: lista sugerida según el municipio elegido, pero
     // admite escritura libre mientras el directorio esté incompleto.
     ctl = document.createElement("div");
-    ctl.style.display = "grid";
-    ctl.style.gap = "6px";
+    ctl.className = "inst";
     const inp = document.createElement("input");
     inp.type = "text";
     inp.id = `i-${id}`;
@@ -208,7 +218,7 @@ function campo(q, store, prefijo, ambito, indice) {
     llenar();
     fs._refill = llenar;
     inp.addEventListener("input", () => {
-      const v = inp.value.trim();
+      const v = mayus(inp.value.trim());
       if (v) store[q.id] = v; else delete store[q.id];
       cambio();
     });
@@ -222,17 +232,14 @@ function campo(q, store, prefijo, ambito, indice) {
     ctl.autocomplete = q.id.endsWith("n") ? "name" : "off";
     ctl.value = store[q.id] || "";
     ctl.addEventListener("input", () => {
-      const v = ctl.value.trim();
+      const v = mayus(ctl.value.trim());
       if (v) store[q.id] = v; else delete store[q.id];
       cambio();
     });
 
   } else { // num, numna
     ctl = document.createElement("div");
-    ctl.style.display = "flex";
-    ctl.style.flexWrap = "wrap";
-    ctl.style.gap = "10px";
-    ctl.style.alignItems = "center";
+    ctl.className = "numrow";
     const inp = document.createElement("input");
     inp.type = "number";
     inp.min = "0";
@@ -276,7 +283,7 @@ function campo(q, store, prefijo, ambito, indice) {
 function seccion(sec, store, prefijo, ambito, indice) {
   const s = document.createElement("div");
   s.className = "section";
-  s.innerHTML = `<h2>${esc(sec.title)}</h2>${sec.hint ? `<p class="hint">${esc(sec.hint)}</p>` : ""}`;
+  s.innerHTML = `<h2 tabindex="-1">${esc(sec.title)}</h2>${sec.hint ? `<p class="hint">${esc(sec.hint)}</p>` : ""}`;
   sec.qs.forEach((q) => s.append(campo(q, store, prefijo, ambito, indice)));
   return s;
 }
@@ -315,7 +322,121 @@ function cambio(qid) {
   const hechas = vis.filter((r) => respondida(r.q, r.store)).length;
   $("#count").textContent = `${hechas}/${vis.length}`;
   $("#barFill").style.width = (vis.length ? (hechas / vis.length) * 100 : 0) + "%";
+  actualizarNav();
   guardarBorrador();
+}
+
+/* =====================================================================
+   Pasos (capas)
+   ===================================================================== */
+
+/** Envuelve una o varias secciones en una capa. `condicion` decide si la
+    capa aplica (la de fichas solo aplica si el docente reportó estudiantes). */
+function paso(contenido, condicion) {
+  const p = document.createElement("div");
+  p.className = "paso";
+  p.hidden = true;
+  if (condicion) p._aplica = condicion;
+  p.append(contenido);
+  pasos.push(p);
+  return p;
+}
+
+const pasoAplica = (i) => !pasos[i]._aplica || pasos[i]._aplica();
+const pasosVisibles = () => pasos.map((_, i) => i).filter(pasoAplica);
+
+function actualizarNav() {
+  const nav = $("#pasoNav");
+  if (!nav || !pasos.length) return;
+  const vis = pasosVisibles();
+  const pos = vis.indexOf(pasoActual);
+  const ultimo = pos === vis.length - 1;
+
+  $("#pasoTxt").textContent = `Paso ${pos + 1} de ${vis.length}`;
+  $("#pasoSeg").innerHTML = vis.map((_, k) =>
+    `<i class="${k < pos ? "hecho" : k === pos ? "actual" : ""}"></i>`).join("");
+
+  $("#prev").hidden = pos <= 0;
+  $("#next").hidden = ultimo;
+  $("#send").hidden = !ultimo;
+  $("#sendHint").hidden = !ultimo;
+}
+
+/** Cambia de capa con la animación correspondiente a la dirección. */
+function cambiarPaso(destino) {
+  if (finTransicion) finTransicion();
+  const viejo = pasos[pasoActual];
+  const nuevo = pasos[destino];
+  const adelante = destino > pasoActual;
+  pasoActual = destino;
+  mensaje("");
+  actualizarNav();
+
+  const enfocar = () => {
+    const h = nuevo.querySelector("h2");
+    if (h) h.focus({ preventScroll: true });
+  };
+  $("#formView").scrollIntoView({ behavior: sinMovimiento() ? "auto" : "smooth", block: "start" });
+
+  if (!viejo || viejo === nuevo || sinMovimiento()) {
+    pasos.forEach((p, i) => { p.hidden = i !== destino; });
+    enfocar();
+    return;
+  }
+
+  const cEntra = adelante ? "entra-der" : "entra-izq";
+  const cSale = adelante ? "sale-izq" : "sale-der";
+  viejo.classList.add("saliendo", cSale);
+  nuevo.hidden = false;
+  nuevo.classList.add(cEntra);
+
+  const t = setTimeout(() => finTransicion && finTransicion(), 460);
+  finTransicion = () => {
+    clearTimeout(t);
+    viejo.hidden = true;
+    viejo.classList.remove("saliendo", cSale);
+    nuevo.classList.remove(cEntra);
+    finTransicion = null;
+  };
+  enfocar();
+}
+
+/** Preguntas obligatorias sin responder dentro de una capa. */
+function faltantesDelPaso(i) {
+  const p = pasos[i];
+  return registro.filter((r) => p.contains(r.el) && visible(r.q, r.store) && obligatoria(r) && !respondida(r.q, r.store));
+}
+
+function siguiente() {
+  const falta = faltantesDelPaso(pasoActual);
+  if (falta.length) {
+    falta.forEach((r) => r.el.classList.add("missing"));
+    falta[0].el.scrollIntoView({ behavior: "smooth", block: "center" });
+    mensaje(`Faltan ${falta.length} pregunta(s) en este paso. Están marcadas en rojo.`);
+    return;
+  }
+  if (pasos[pasoActual].contains($("#students")) && requiereFichas() && S.length === 0) {
+    mensaje("Agregue al menos una ficha de estudiante para continuar.");
+    return;
+  }
+  const vis = pasosVisibles();
+  const pos = vis.indexOf(pasoActual);
+  if (pos < vis.length - 1) cambiarPaso(vis[pos + 1]);
+}
+
+function anterior() {
+  const vis = pasosVisibles();
+  const pos = vis.indexOf(pasoActual);
+  if (pos > 0) cambiarPaso(vis[pos - 1]);
+}
+
+/** Lleva a la capa que contiene un elemento y, al terminar la entrada,
+    lo desplaza a la vista. */
+function llevarA(el, bloque = "center") {
+  const i = pasos.findIndex((p) => p.contains(el));
+  const desplazar = () => el.scrollIntoView({ behavior: "smooth", block: bloque });
+  if (i >= 0 && i !== pasoActual) { cambiarPaso(i); setTimeout(desplazar, sinMovimiento() ? 0 : 480); }
+  else desplazar();
 }
 
 /* =====================================================================
@@ -325,6 +446,9 @@ function cambio(qid) {
 export function renderizarFormulario(rol) {
   rolActual = rol;
   registro = [];
+  pasos = [];
+  pasoActual = 0;
+  if (finTransicion) finTransicion();
   const f = $("#form");
   f.innerHTML = "";
 
@@ -332,40 +456,65 @@ export function renderizarFormulario(rol) {
   A = borrador.A || {};
   S = borrador.S || [];
 
+  const ind = document.createElement("div");
+  ind.className = "pasos-ind";
+  ind.innerHTML = `<span id="pasoTxt"></span><span class="seg" id="pasoSeg" aria-hidden="true"></span>`;
+  f.append(ind);
+
+  const capas = document.createElement("div");
+  capas.className = "pasos";
+  f.append(capas);
+
   if (rol === "rectores") {
     $("#formTitle").textContent = "Rectores";
     $("#formIntro").innerHTML = `<h2 class="titulo">${esc(RECTORES.title)}</h2><p class="hint">Responda con la información institucional disponible. Las cantidades se escriben en números enteros.</p>`;
-    RECTORES.sections.forEach((s) => f.append(seccion(s, A, "", "general", null)));
+    RECTORES.sections.forEach((s) => capas.append(paso(seccion(s, A, "", "general", null))));
   } else {
     $("#formTitle").textContent = "Docentes";
     $("#formIntro").innerHTML = `<h2 class="titulo">Encuesta para docentes</h2><p class="hint">Primero describa su grupo. Luego diligencie una ficha (secciones 2 a 4) por cada estudiante con autismo u otra condición del neurodesarrollo reportada, sin nombres ni documentos. Al final responda las secciones 5 y 6.</p>`;
-    f.append(seccion(DOC_ID, A, "", "general", null));
-    f.append(seccion(DOC_GRUPO, A, "", "general", null));
+    capas.append(paso(seccion(DOC_ID, A, "", "general", null)));
+    capas.append(paso(seccion(DOC_GRUPO, A, "", "general", null)));
 
     const st = document.createElement("div");
     st.id = "students";
     st.className = "section";
-    st.innerHTML = `<h2>Fichas por estudiante</h2><p class="hint" id="stHint"></p><div id="stList"></div><div class="actions" style="margin-top:14px"><button type="button" class="btn ghost" id="addSt">+ Agregar ficha de estudiante</button></div>`;
-    f.append(st);
+    st.innerHTML = `<h2 tabindex="-1">Fichas por estudiante</h2><p class="hint" id="stHint"></p><div id="stList"></div><div class="actions" style="margin-top:14px"><button type="button" class="btn ghost" id="addSt">+ Agregar ficha de estudiante</button></div>`;
+    capas.append(paso(st, requiereFichas));
 
-    DOC_CIERRE.forEach((s) => f.append(seccion(s, A, "", "general", null)));
-    renderizarFichas();
+    DOC_CIERRE.forEach((s) => capas.append(paso(seccion(s, A, "", "general", null))));
     st.querySelector("#addSt").addEventListener("click", () => {
       S.push({});
       renderizarFichas();
+      mensaje("");
       const ultima = $("#stList").lastElementChild;
       if (ultima) ultima.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   }
 
-  const act = document.createElement("div");
-  act.className = "actions";
-  act.innerHTML = `<button type="submit" class="btn" id="send">Enviar respuestas</button><span class="hint" id="sendHint">Revise que todas las preguntas visibles estén respondidas.</span>`;
-  f.append(act);
+  const nav = document.createElement("div");
+  nav.className = "actions pasos-nav";
+  nav.id = "pasoNav";
+  nav.innerHTML = `
+    <button type="button" class="btn ghost" id="prev">← Anterior</button>
+    <button type="button" class="btn" id="next">Siguiente →</button>
+    <button type="submit" class="btn" id="send">Enviar respuestas</button>
+    <span class="hint" id="sendHint">Revise que todas las preguntas visibles estén respondidas.</span>`;
+  f.append(nav);
   f.append(Object.assign(document.createElement("div"), { id: "formMsg" }));
 
-  f.onsubmit = (e) => { e.preventDefault(); emitir("innovatea:enviar", { rol }); };
-  cambio();
+  $("#prev").addEventListener("click", anterior);
+  $("#next").addEventListener("click", siguiente);
+
+  // Enter dentro de un campo avanza de paso; solo en el último envía.
+  f.onsubmit = (e) => {
+    e.preventDefault();
+    const vis = pasosVisibles();
+    if (vis.indexOf(pasoActual) < vis.length - 1) { siguiente(); return; }
+    emitir("innovatea:enviar", { rol });
+  };
+
+  pasos[0].hidden = false;
+  if (rol === "docentes") renderizarFichas(); else cambio();
   mostrar("formView");
 }
 
@@ -395,10 +544,8 @@ function renderizarFichas() {
 function sincronizarFichas() {
   const h = $("#stHint");
   if (!h) return;
-  const necesita = A.d5 === "Sí" || A.d7 === "Sí";
-  $("#students").hidden = !necesita;
   const n = Number(A.d6 || 0);
-  h.textContent = necesita
+  h.textContent = requiereFichas()
     ? `Registró ${A.d5 === "Sí" ? n + " estudiante(s) con autismo" : "estudiantes con otras condiciones"}. Lleva ${S.length} ficha(s) diligenciada(s).`
     : "";
 }
@@ -414,14 +561,14 @@ export const obtenerRegistro = () => registro;
 export const rol = () => rolActual;
 export const numeroDeFichas = () => S.length;
 
-/** Recibe descriptores { id, ambito, indice } de transformador.js y resalta
-    las preguntas correspondientes. */
+/** Recibe descriptores { id, ambito, indice } de transformador.js, resalta
+    las preguntas correspondientes y lleva a la capa de la primera. */
 export function marcarFaltantes(faltantes) {
   const elementos = faltantes
     .map((f) => registro.find((r) => r.q.id === f.id && r.ambito === f.ambito && r.indice === f.indice))
     .filter(Boolean);
   elementos.forEach((r) => r.el.classList.add("missing"));
-  if (elementos.length) elementos[0].el.scrollIntoView({ behavior: "smooth", block: "center" });
+  if (elementos.length) llevarA(elementos[0].el);
 }
 
 export function mensaje(html, clase = "bad") {
@@ -431,7 +578,7 @@ export function mensaje(html, clase = "bad") {
 
 export function irA(sel) {
   const el = $(sel);
-  if (el) el.scrollIntoView({ behavior: "smooth" });
+  if (el) llevarA(el, "start");
 }
 
 export function bloquearEnvio(bloqueado, texto) {

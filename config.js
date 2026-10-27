@@ -13,7 +13,7 @@ export const CONFIG = {
 
   /* URL /exec del Web App de Google Apps Script que recibe las encuestas.
      Se obtiene implementando apps-script/Codigo.gs. Ver el README. */
-  ENDPOINT_SHEETS: "",
+  ENDPOINT_SHEETS: "https://script.google.com/macros/s/AKfycbzALRubDZJ2PuiKzKw2MQdtZCyfJo8c-REMApMB4mBIzy-u_Mc73FTQENYndU8PDlax5A/exec",
 
   /* Deje vacío para que la hoja de estilos se cargue desde el mismo sitio
      donde está main.js (jsDelivr). Solo se cambia si aloja los archivos
