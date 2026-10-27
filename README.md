@@ -151,6 +151,7 @@ formularioinnovatea/
 ├── modulos/
 │   ├── catalogos.js        Municipios, EPS, grados, directorio institucional
 │   ├── preguntas.js        Las 74 preguntas de los dos formularios
+│   ├── reglas.js           Coherencia entre respuestas (límites y opciones)
 │   ├── ui.js               Módulo 1 · renderizado e interacción
 │   ├── recolector.js       Módulo 2 · lectura del DOM al enviar
 │   ├── transformador.js    Módulo 3 · limpieza, validación y filas
@@ -183,10 +184,14 @@ se le avisa en pantalla para que no la diligencie dos veces.
 **Preguntas condicionales.** Una pregunta que se oculta después de haber sido respondida no viaja
 a la hoja: el transformador descarta las respuestas de preguntas no visibles.
 
-**Avisos de coherencia.** En el formulario de rectores, si las cifras no cuadran (más niñas y
-niños autistas que diagnósticos reportados, o más estudiantes con condiciones que matrícula
-total) aparece un aviso en naranja. Es un aviso, no un bloqueo: la institución puede tener
-razones para esos números.
+**Coherencia entre respuestas.** Las reglas están en `modulos/reglas.js` y no son avisos: una
+respuesta imposible (más estudiantes con autismo que matriculados, más niñas que estudiantes con
+autismo, marcar «Ninguna» después de reportar casos, más fichas que estudiantes a cargo…) muestra
+el motivo en rojo y el formulario no avanza hasta corregirla. Las opciones que ya no aplican se
+deshabilitan, las que se deducen de respuestas anteriores se marcan solas, y `transformador.js`
+vuelve a revisar todo antes de enviar. Las cantidades pequeñas se responden con botones del 0 al
+10; «11 o más» abre el campo para escribir, siempre dentro del máximo que permitan las respuestas
+anteriores.
 
 **Datos personales.** El formulario pide nombre y contacto de quien responde (con autorización
 expresa, Ley 1581 de 2012) y ningún dato identificable de los estudiantes. La lista de quién ha

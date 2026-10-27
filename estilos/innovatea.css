@@ -21,10 +21,13 @@
    1. Reset defensivo
    ===================================================================== */
 
+/* Los íconos SVG quedan fuera: en SVG la geometría (radio, trazos) son
+   propiedades CSS, y revertirlas borraría el dibujo. :where() mantiene la
+   especificidad en (1,0,0), así que nada de lo que sigue cambia. */
 #innovatea-app,
-#innovatea-app *,
-#innovatea-app *::before,
-#innovatea-app *::after { all: revert; }
+#innovatea-app *:where(:not(svg, svg *)),
+#innovatea-app *:where(:not(svg, svg *))::before,
+#innovatea-app *:where(:not(svg, svg *))::after { all: revert; }
 
 /* =====================================================================
    2. Tokens
@@ -114,29 +117,66 @@
    6. Formulario por pasos
    ===================================================================== */
 
-#innovatea-app .pasos-ind{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin-top:18px;font-size:.88rem;color:var(--muted);font-weight:700}
-#innovatea-app .pasos-ind .seg{display:flex;gap:6px;flex:1;min-width:140px}
-#innovatea-app .pasos-ind .seg i{flex:1;height:4px;border-radius:2px;background:var(--line);transition:background .3s}
-#innovatea-app .pasos-ind .seg i.hecho{background:var(--brand)}
-#innovatea-app .pasos-ind .seg i.actual{background:var(--sun)}
+#innovatea-app .pasos-ind{display:flex;align-items:center;gap:14px;margin-top:18px;font-size:.88rem;color:var(--muted);font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+#innovatea-app .pasos-ind .progreso{flex:1;height:4px;border-radius:2px;background:var(--line);overflow:hidden}
+#innovatea-app .pasos-ind .progreso i{display:block;height:100%;width:0;background:var(--brand);transition:width .35s}
 
 /* Contenedor de capas: recorta lo que entra y sale por los lados. */
-#innovatea-app .pasos{position:relative;overflow:hidden;overflow:clip;margin-top:12px;padding:4px}
-#innovatea-app .paso{background:var(--surface);border:1.5px solid var(--line);border-radius:var(--r);padding:clamp(16px,3vw,36px)}
-#innovatea-app .paso.saliendo{position:absolute;top:4px;left:4px;right:4px;pointer-events:none}
+#innovatea-app .pasos{position:relative;overflow:hidden;overflow:clip;margin-top:12px;padding:4px;transition:height var(--slide)}
+/* Cada pantalla es una tarjeta con una sola pregunta y mide lo que mide
+   su contenido: sin altura mínima, para que no queden huecos en blanco.
+   Al cambiar de pregunta, el contenedor pasa suavemente de la altura de
+   la tarjeta anterior a la de la nueva (ver cambiarA en ui.js). */
+#innovatea-app .pantalla{background:var(--surface);border:1.5px solid var(--line);border-radius:var(--r);padding:clamp(18px,3vw,36px)}
+#innovatea-app .pantalla-sec{font-size:.78rem;letter-spacing:.07em;text-transform:uppercase;color:var(--brand);font-weight:700;margin-bottom:10px}
+#innovatea-app .pantalla-hint{margin:-4px 0 14px}
+#innovatea-app .pantalla .q{border:0;padding:6px 0 0;gap:18px}
+#innovatea-app .pantalla .q legend,#innovatea-app .pantalla .q .lab{font-family:var(--f-display);font-size:clamp(1.15rem,1rem + .7vw,1.5rem);line-height:1.25;gap:12px;margin-bottom:2px}
+#innovatea-app .pantalla .q .multi-note{font-family:var(--f-body);font-size:.9rem}
+#innovatea-app .pantalla .opts{gap:10px}
+#innovatea-app .pantalla .opt span{padding:11px 18px}
+#innovatea-app .pantalla h2{font-size:clamp(1.25rem,1rem + .9vw,1.6rem);color:var(--brand);margin-bottom:8px}
+#innovatea-app .fin-ficha .actions{margin-top:20px}
+/* Resumen final: una línea por respuesta, agrupado por sección. Cada
+   línea es un botón que vuelve a la pregunta. */
+#innovatea-app .resumen{margin-top:14px;max-height:min(56vh,520px);overflow-y:auto;overscroll-behavior:contain;border:1px solid var(--line);border-radius:10px;padding:4px 12px 12px}
+#innovatea-app .resumen-sec{position:sticky;top:0;background:var(--surface);padding:10px 0 6px;font-size:.74rem;letter-spacing:.07em;text-transform:uppercase;color:var(--brand);font-weight:700;border-bottom:1px solid var(--line)}
+#innovatea-app .resumen-filas{display:grid}
+#innovatea-app .resumen-fila{display:grid;grid-template-columns:2.2ch minmax(0,1fr) minmax(0,1fr);gap:10px;align-items:baseline;width:100%;text-align:left;padding:7px 4px;border:0;border-bottom:1px dashed var(--line);background:none;color:var(--ink);font:inherit;font-size:.88rem;line-height:1.3;cursor:pointer}
+#innovatea-app .resumen-fila:hover{background:var(--sun-soft)}
+#innovatea-app .resumen-n{color:var(--brand);font-weight:700;font-variant-numeric:tabular-nums}
+#innovatea-app .resumen-q{color:var(--muted)}
+#innovatea-app .resumen-v{font-weight:700;text-transform:uppercase;letter-spacing:.02em}
+#innovatea-app .resumen-fila.malo .resumen-v{color:var(--bad)}
+@media (max-width:560px){
+  #innovatea-app .resumen-fila{grid-template-columns:2.2ch minmax(0,1fr);row-gap:1px;padding:6px 2px}
+  #innovatea-app .resumen-v{grid-column:2}
+}
+
+/* Pantalla que abre las fichas: deja claro que la parte es obligatoria. */
+#innovatea-app .intro-fichas{display:grid;gap:12px}
+#innovatea-app .intro-fichas h2{margin-bottom:0}
+#innovatea-app .intro-fichas .obligatorio{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:8px;background:var(--sun-soft);border:1.5px solid var(--sun);font-size:1rem}
+#innovatea-app .intro-fichas .obligatorio::before{content:"!";flex:none;width:22px;height:22px;border-radius:50%;background:var(--sun);color:var(--ink);display:grid;place-items:center;font-weight:700;font-size:.85rem}
+#innovatea-app .intro-fichas [data-intro-texto]{font-size:1.05rem;font-weight:700}
+#innovatea-app .intro-lista{margin:0;padding-left:1.2em;display:grid;gap:6px;color:var(--muted)}
+#innovatea-app .pantalla.saliendo{position:absolute;top:4px;left:4px;right:4px;pointer-events:none}
 
 #innovatea-app .entra-der{animation:innovatea-entra-der var(--slide) both}
 #innovatea-app .entra-izq{animation:innovatea-entra-izq var(--slide) both}
 #innovatea-app .sale-izq{animation:innovatea-sale-izq var(--slide) both}
 #innovatea-app .sale-der{animation:innovatea-sale-der var(--slide) both}
-@keyframes innovatea-entra-der{from{transform:translateX(100%);opacity:0}to{transform:none;opacity:1}}
-@keyframes innovatea-entra-izq{from{transform:translateX(-100%);opacity:0}to{transform:none;opacity:1}}
-@keyframes innovatea-sale-izq{from{transform:none;opacity:1}to{transform:translateX(-100%);opacity:0}}
-@keyframes innovatea-sale-der{from{transform:none;opacity:1}to{transform:translateX(100%);opacity:0}}
+/* Las dos tarjetas se mueven juntas y pegadas (la que sale y la que entra
+   recorren la misma distancia al mismo ritmo), sin desvanecerse: así en
+   ningún momento queda un hueco en blanco entre ellas. El espacio extra
+   (16px) es la separación visual entre una tarjeta y la siguiente. */
+@keyframes innovatea-entra-der{from{transform:translateX(calc(100% + 16px))}to{transform:none}}
+@keyframes innovatea-entra-izq{from{transform:translateX(calc(-100% - 16px))}to{transform:none}}
+@keyframes innovatea-sale-izq{from{transform:none}to{transform:translateX(calc(-100% - 16px))}}
+@keyframes innovatea-sale-der{from{transform:none}to{transform:translateX(calc(100% + 16px))}}
 
 #innovatea-app .pasos-nav{justify-content:space-between;margin-top:18px}
 #innovatea-app .pasos-nav #next,#innovatea-app .pasos-nav #send{margin-left:auto}
-#innovatea-app .pasos-nav #sendHint{flex-basis:100%;text-align:right}
 
 #innovatea-app .section > h2{font-size:clamp(1.2rem,1rem + .8vw,1.5rem);color:var(--brand);margin-bottom:4px}
 #innovatea-app .section > .hint{margin:0 0 6px}
@@ -168,6 +208,54 @@
 #innovatea-app input[type=text]{text-transform:uppercase;letter-spacing:.02em}
 #innovatea-app input::placeholder{text-transform:none;letter-spacing:normal}
 
+/* Buscador de municipios: campo con lupa, lista filtrable en cuadrícula
+   y, una vez elegido, una ficha con el valor y "Cambiar". */
+#innovatea-app .buscador{display:grid;gap:10px;max-width:820px}
+#innovatea-app .busc-panel{display:grid;gap:8px}
+#innovatea-app .busc-campo{position:relative}
+#innovatea-app .busc-campo svg{position:absolute;left:14px;top:50%;width:20px;height:20px;transform:translateY(-50%);color:var(--muted);pointer-events:none}
+#innovatea-app .busc-campo input[type=text]{max-width:none;padding:13px 14px 13px 44px;font-size:1.05rem;border-radius:10px}
+#innovatea-app .busc-campo input[type=text]:focus{border-color:var(--brand);outline:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 18%,transparent)}
+#innovatea-app .busc-cuenta{font-size:.85rem}
+#innovatea-app .busc-lista{list-style:none;margin:0;padding:6px;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:4px;max-height:min(290px,42vh);overflow-y:auto;overscroll-behavior:contain;border:1.5px solid var(--line);border-radius:10px;background:var(--surface)}
+#innovatea-app .busc-lista li{padding:10px 12px;border-radius:7px;cursor:pointer;text-transform:uppercase;letter-spacing:.02em;font-size:.9rem;line-height:1.25;transition:background .12s}
+#innovatea-app .busc-lista li[role=option]:hover,#innovatea-app .busc-lista li.activo{background:var(--sun-soft)}
+#innovatea-app .busc-lista li.activo{box-shadow:inset 0 0 0 1.5px var(--sun)}
+#innovatea-app .busc-lista li[aria-selected=true]{background:var(--brand);color:var(--brand-ink)}
+#innovatea-app .busc-lista mark{background:none;color:inherit;font-weight:700;text-decoration:underline;text-decoration-color:var(--sun);text-decoration-thickness:3px;text-underline-offset:3px}
+#innovatea-app .busc-lista .busc-vacio{grid-column:1/-1;cursor:default;color:var(--muted);text-transform:none;letter-spacing:normal;padding:14px}
+#innovatea-app .busc-elegido{display:flex;align-items:center;gap:12px;max-width:640px;padding:12px 14px;border:1.5px solid var(--brand);border-radius:10px;background:color-mix(in srgb,var(--brand) 6%,var(--surface))}
+#innovatea-app .busc-check{flex:none;width:28px;height:28px;border-radius:50%;background:var(--brand);color:var(--brand-ink);display:grid;place-items:center;font-weight:700;font-size:.95rem}
+#innovatea-app .busc-valor{flex:1;min-width:0;font-family:var(--f-display);font-size:1.1rem;text-transform:uppercase;letter-spacing:.03em}
+@media (max-width:560px){#innovatea-app .busc-lista{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}}
+
+/* Números pequeños: botones cuadrados del mínimo al 10, "11 o más" y,
+   cuando aplica, "Información no disponible". */
+#innovatea-app .numsel{display:grid;gap:12px}
+#innovatea-app .chips{display:flex;flex-wrap:wrap;gap:8px}
+#innovatea-app .chip{min-width:50px;height:50px;padding:0 14px;display:inline-grid;place-items:center;border:1.5px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font:inherit;font-weight:700;font-size:1.05rem;font-variant-numeric:tabular-nums;cursor:pointer;transition:background .12s,border-color .12s,transform .12s}
+#innovatea-app .chip:hover{border-color:var(--brand)}
+#innovatea-app .chip:active{transform:scale(.96)}
+#innovatea-app .chip.on{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+#innovatea-app .chip-mas,#innovatea-app .chip-na{font-size:.92rem;font-weight:700;text-transform:uppercase;letter-spacing:.02em}
+#innovatea-app .chip-na{font-weight:400}
+#innovatea-app .num-mas{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+#innovatea-app .num-mas input[type=number]{max-width:220px;font-size:1.05rem}
+
+/* Opciones que no aplican (gris) o que se marcaron solas (fijas). */
+#innovatea-app .opt.bloq span{opacity:.4;cursor:not-allowed;text-decoration:line-through;text-decoration-thickness:1.5px}
+#innovatea-app .opt.bloq input{cursor:not-allowed}
+#innovatea-app .opt.fijada span{opacity:1;text-decoration:none;box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--brand-ink) 55%,transparent)}
+#innovatea-app .nota{color:var(--muted);font-size:.88rem}
+
+/* Respuesta que no cuadra: mensaje en rojo y "Siguiente" no avanza. */
+#innovatea-app .incoh{display:flex;gap:8px;align-items:flex-start;color:var(--bad);font-weight:700;font-size:.95rem;background:color-mix(in srgb,var(--bad) 8%,var(--surface));border:1.5px solid color-mix(in srgb,var(--bad) 45%,transparent);border-radius:8px;padding:10px 12px}
+#innovatea-app .incoh::before{content:"!";flex:none;width:20px;height:20px;border-radius:50%;background:var(--bad);color:#fff;display:grid;place-items:center;font-size:.8rem;line-height:1}
+#innovatea-app .q.incoherente input[type=number],#innovatea-app .q.incoherente .chip.on{border-color:var(--bad)}
+#innovatea-app .q.incoherente .chip.on{background:var(--bad)}
+#innovatea-app .sacudir{animation:innovatea-sacudir .38s}
+@keyframes innovatea-sacudir{0%,100%{transform:none}20%{transform:translateX(-7px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(2px)}}
+
 #innovatea-app .q.missing{background:linear-gradient(90deg,color-mix(in srgb,var(--bad) 10%,transparent),transparent)}
 #innovatea-app .q.missing .err{display:block}
 #innovatea-app .err{display:none;color:var(--bad);font-size:.9rem}
@@ -192,9 +280,8 @@
 /* Móvil: botones de navegación a todo el ancho, más fáciles de tocar. */
 @media (max-width:560px){
   #innovatea-app .pasos{padding:2px}
-  #innovatea-app .paso.saliendo{top:2px;left:2px;right:2px}
+  #innovatea-app .pantalla.saliendo{top:2px;left:2px;right:2px}
   #innovatea-app .pasos-nav .btn{flex:1 1 0}
-  #innovatea-app .pasos-nav #sendHint{text-align:left}
   #innovatea-app .topbar strong{display:none}
   #innovatea-app .bar{flex:1}
 }

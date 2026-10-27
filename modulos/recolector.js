@@ -24,6 +24,9 @@ function valorDe(entrada) {
   }
 
   if (q.t === "select") {
+    // El buscador de municipios guarda lo elegido en un input oculto.
+    const oculto = el.querySelector("input[data-valor]");
+    if (oculto) return oculto.value || undefined;
     const sel = el.querySelector("select");
     return sel && sel.value ? sel.value : undefined;
   }
@@ -32,6 +35,16 @@ function valorDe(entrada) {
     const inp = el.querySelector('input[type="text"]');
     const v = inp ? inp.value.trim().toLocaleUpperCase("es-CO") : "";
     return v || undefined;
+  }
+
+  if (q.t === "num" || q.t === "numna") {
+    // Números pequeños: los botones guardan el valor en un input oculto.
+    const oculto = el.querySelector("input[data-valor]");
+    if (oculto) {
+      if (oculto.value === "") return undefined;
+      if (oculto.value === "Información no disponible") return oculto.value;
+      return Math.max(0, Math.floor(Number(oculto.value)));
+    }
   }
 
   if (q.t === "numna") {

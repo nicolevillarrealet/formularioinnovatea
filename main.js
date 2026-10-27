@@ -68,9 +68,10 @@ async function alEnviar(rol) {
   // 2. Limpiar, validar y aplanar.
   const resultado = limpiarDatos(crudos, rol);
   if (!resultado.ok) {
-    ui.marcarFaltantes(resultado.faltantes);
+    // Primero se navega (eso limpia el mensaje anterior) y luego se avisa.
+    if (resultado.faltantes.length) ui.marcarFaltantes(resultado.faltantes);
+    else ui.irA(".fin-ficha");
     ui.mensaje(resultado.mensaje);
-    if (!resultado.faltantes.length) ui.irA("#students");
     return;
   }
 

@@ -9,6 +9,8 @@
      dep   id de la pregunta de la que depende un campo de institución
      show  función (respuestas) => bool, para preguntas condicionales
      opt   true si la pregunta es opcional
+     buscar  en un select largo, muestra un buscador en vez del desplegable;
+             el valor es el sustantivo plural que se lee ("municipios")
 
    Cada sección es una capa (un paso) del formulario. Por eso el formulario
    de rectores se divide en cuatro partes: así nadie enfrenta 28 preguntas
@@ -27,7 +29,7 @@ export const RECTORES={
     {id:"rn",n:"A",t:"text",l:"Nombre completo"},
     {id:"rc",n:"B",t:"text",l:"Correo electrónico o celular de contacto",opt:true},
   ]},{title:"Parte 1. La institución educativa", qs:[
-    {id:"r1",n:1,t:"select",l:"¿En qué municipio se encuentra la institución educativa?",o:MUNICIPIOS},
+    {id:"r1",n:1,t:"select",l:"¿En qué municipio se encuentra la institución educativa?",o:MUNICIPIOS,buscar:"municipios"},
     {id:"r2",n:2,t:"inst",l:"¿Cuál es la institución educativa?",dep:"r1"},
     {id:"r3",n:3,t:"radio",l:"¿Cuál es su cargo?",o:["Rector","Director rural","Coordinador","Otro directivo autorizado"]},
     {id:"r4",n:4,t:"radio",l:"¿Cuál es la zona de cobertura de la institución educativa?",o:["Urbana","Rural","Ambas"]},
@@ -59,12 +61,7 @@ export const RECTORES={
     {id:"r27",n:27,t:"multi",l:"¿Qué entidades han participado en estas capacitaciones?",o:["Gobernación","Alcaldía","Instituciones de educación superior","Entidades de salud","Organizaciones sociales","Otras"],show:yes("r25")},
     {id:"r28",n:28,t:"multi",l:"¿Qué necesidades institucionales considera prioritarias?",o:["Formación docente","Personal de apoyo","Materiales accesibles","Articulación con salud","Orientación a familias","Accesibilidad"]},
   ]}],
-  checks(a){
-    const w=[];const n=k=>Number(a[k]||0);
-    if(a.r6==="Sí"&&(n("r11")+n("r12"))>(n("r7")+n("r8"))) w.push({q:"r12",m:"La suma de niñas y niños autistas (preguntas 11 y 12) supera el total con diagnóstico de autismo (preguntas 7 y 8)."});
-    if(a.r5!==undefined&&(n("r7")+n("r8")+n("r9")+n("r10"))>n("r5")) w.push({q:"r10",m:"Los estudiantes reportados con condiciones superan la matrícula de básica primaria (pregunta 5)."});
-    return w;
-  }
+  /* Las reglas de coherencia entre respuestas están en reglas.js. */
 };
 
 /* ---------- Formulario 2: Docentes ---------- */
@@ -73,7 +70,7 @@ export const DOC_ID={title:"Datos de quien responde",hint:"Solo la coordinación
   {id:"dc",n:"B",t:"text",l:"Correo electrónico o celular de contacto",opt:true},
 ]};
 export const DOC_GRUPO={title:"Sección 1. Identificación de la institución educativa y del docente", qs:[
-  {id:"d1",n:1,t:"select",l:"¿En qué municipio se encuentra la institución educativa?",o:MUNICIPIOS},
+  {id:"d1",n:1,t:"select",l:"¿En qué municipio se encuentra la institución educativa?",o:MUNICIPIOS,buscar:"municipios"},
   {id:"d2",n:2,t:"inst",l:"¿A qué institución educativa pertenece?",dep:"d1"},
   {id:"d3",n:3,t:"radio",l:"¿Qué grado de básica primaria tiene a cargo?",o:[...GRADOS,"Varios grados"]},
   {id:"d4",n:4,t:"num",l:"¿Cuántos estudiantes tiene a cargo?"},
