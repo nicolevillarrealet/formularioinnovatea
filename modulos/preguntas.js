@@ -2,7 +2,8 @@
    Cada pregunta es un objeto:
      id    clave corta con la que viaja la respuesta (r1, d5, e22…)
      n     número visible para el encuestado
-     t     tipo de control: text | largo | num | numna | select | multi | radio | inst
+     t     tipo de control: text | largo | tel | num | numna | select | multi | radio | inst
+           (tel = celular colombiano de 10 dígitos)
            (largo = texto de varias líneas, hasta 500 caracteres)
      ayuda texto corto bajo el enunciado
      l     enunciado
@@ -39,7 +40,7 @@ export const RECTORES={
   key:"rectores", title:"Rectores — Caracterización institucional y poblacional",
   sections:[{title:"Datos de quien responde",qs:[
     {id:"rn",n:"A",t:"text",l:"Nombre completo"},
-    {id:"rc",n:"B",t:"text",l:"Correo electrónico o celular de contacto",opt:true},
+    {id:"rc",n:"B",t:"tel",l:"Celular de contacto",ayuda:"Su correo ya quedó registrado al verificarlo; aquí no hace falta repetirlo.",opt:true},
   ]},{title:"Parte 1. La institución educativa", qs:[
     {id:"r1",n:1,t:"select",l:"¿En qué municipio se encuentra la institución educativa?",o:MUNICIPIOS,buscar:"municipios"},
     {id:"r2",n:2,t:"inst",l:"¿Cuál es la institución educativa?",dep:"r1"},
@@ -79,7 +80,7 @@ export const RECTORES={
 /* ---------- Formulario 2: Docentes ---------- */
 export const DOC_ID={title:"Datos de quien responde",qs:[
   {id:"dn",n:"A",t:"text",l:"Nombre completo del docente"},
-  {id:"dc",n:"B",t:"text",l:"Correo electrónico o celular de contacto",opt:true},
+  {id:"dc",n:"B",t:"tel",l:"Celular de contacto",ayuda:"Su correo ya quedó registrado al verificarlo; aquí no hace falta repetirlo.",opt:true},
 ]};
 export const DOC_GRUPO={title:"Sección 1. Identificación de la institución educativa y del docente", qs:[
   {id:"d1",n:1,t:"select",l:"¿En qué municipio se encuentra la institución educativa?",o:MUNICIPIOS,buscar:"municipios"},

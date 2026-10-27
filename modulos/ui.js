@@ -476,7 +476,7 @@ function mostrarErrores() {
 
 function campo(q, store, prefijo, ambito, indice) {
   const id = prefijo + q.id;
-  const enLinea = ["select", "num", "inst", "numna", "text", "largo"].includes(q.t);
+  const enLinea = ["select", "num", "inst", "numna", "text", "largo", "tel"].includes(q.t);
   const fs = document.createElement(enLinea ? "div" : "fieldset");
   fs.className = "q";
   fs.id = "q-" + id;
@@ -592,6 +592,22 @@ function campo(q, store, prefijo, ambito, indice) {
     });
     contar();
     ctl.append(ta, cuenta);
+
+  } else if (q.t === "tel") {
+    // Celular: solo dígitos, 10 como máximo.
+    ctl = document.createElement("input");
+    ctl.type = "tel";
+    ctl.id = `i-${id}`;
+    ctl.inputMode = "numeric";
+    ctl.autocomplete = "tel-national";
+    ctl.maxLength = 10;
+    ctl.placeholder = "3001234567";
+    ctl.value = store[q.id] || "";
+    ctl.addEventListener("input", () => {
+      ctl.value = ctl.value.replace(/\D/g, "").slice(0, 10);
+      if (ctl.value) store[q.id] = ctl.value; else delete store[q.id];
+      cambio();
+    });
 
   } else if (q.t === "text") {
     ctl = document.createElement("input");
@@ -867,7 +883,7 @@ function cambiarA(destino, adelante) {
 /** En computador se enfoca el campo para escribir de una vez; en el
     celular solo el enunciado, para no abrir el teclado sin pedirlo. */
 function enfocar(p) {
-  const campoTexto = [...p.querySelectorAll('input[type="text"], input[type="number"], select, textarea')]
+  const campoTexto = [...p.querySelectorAll('input[type="text"], input[type="number"], input[type="tel"], select, textarea')]
     .find((x) => !x.closest("[hidden]"));
   if (campoTexto && punteroFino()) { campoTexto.focus({ preventScroll: true }); return; }
   const h = p.querySelector("legend, .lab, h2");
@@ -955,9 +971,10 @@ export function renderizarFormulario(rol, ops = {}) {
   S = borrador.S || [];
   vioResumen = !!borrador.fin;
   fichasPintadas = -1;
-  // El contacto se llena con el correo verificado, si está vacío.
+  // Borradores de la versión anterior pudieron guardar un correo en el
+  // contacto: ahora el campo es solo para el celular.
   const contacto = rol === "rectores" ? "rc" : "dc";
-  if (ops.correo && !A[contacto]) A[contacto] = ops.correo.toLocaleUpperCase("es-CO");
+  if (A[contacto] && /\D/.test(A[contacto])) delete A[contacto];
 
   const ind = document.createElement("div");
   ind.className = "pasos-ind";

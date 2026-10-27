@@ -16,14 +16,14 @@ Sheets.
 En la página donde va la encuesta, agregue un bloque **HTML personalizado** y pegue esto:
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@v1.3.0/main.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@v1.4.1/main.js"></script>
 ```
 
 Eso es todo. El formulario se monta justo donde esté el bloque; la etiqueta carga el
 controlador y el controlador trae por su cuenta los estilos y los demás módulos. No hace falta
 plugin, ni FTP, ni subir archivos al hosting.
 
-**Para publicar un cambio:** `git tag v1.3.1 && git push origin v1.3.1`, y cambie el número en
+**Para publicar un cambio:** `git tag v1.4.2 && git push origin v1.4.2`, y cambie el número en
 la línea de WordPress.
 
 > **Por qué una etiqueta y no `@main`.** jsDelivr le dice al navegador que guarde estos archivos

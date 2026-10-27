@@ -33,6 +33,11 @@ const si = (a, k) => a?.[k] === "Sí";
    así que si se renumera el instrumento los mensajes siguen correctos. */
 const P = (id) => INDICE[id]?.n;
 
+/** Celular colombiano: 10 dígitos que empiezan por 3. */
+const celularMalo = (v) => v && !/^3\d{9}$/.test(String(v))
+  ? "Escriba un celular de 10 dígitos que empiece por 3, o deje el campo vacío."
+  : null;
+
 /* ---------- Rectores ---------- */
 
 const autismoRector = (a) => n(a, "r7") + n(a, "r8");
@@ -75,6 +80,10 @@ function permitidasEnFicha(c) {
    ===================================================================== */
 
 const R = {
+  /* --- Contacto (opcional, pero si se escribe debe ser un celular) --- */
+  rc: { regla: (s) => celularMalo(s.rc) },
+  dc: { regla: (s) => celularMalo(s.dc) },
+
   /* --- Rectores --- */
   r5: { min: () => ({ v: 1, m: "Escriba al menos 1: es la matrícula de básica primaria de la institución." }) },
   r7: { chips: true, max: deMatricula },

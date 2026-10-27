@@ -2,7 +2,7 @@
    desde WordPress:
 
      <script type="module"
-       src="https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@v1.3.0/main.js"></script>
+       src="https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@v1.4.1/main.js"></script>
 
    Su trabajo es coordinar los módulos, no contener lógica propia:
      ui.js           dibuja y avisa cuando el usuario actúa

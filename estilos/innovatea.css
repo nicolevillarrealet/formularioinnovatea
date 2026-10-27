@@ -246,6 +246,7 @@
 #innovatea-app .numrow{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 #innovatea-app select,
 #innovatea-app input[type=number],
+#innovatea-app input[type=tel],
 #innovatea-app input[type=text]{width:100%;max-width:640px;padding:11px 12px;border:1.5px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);box-shadow:none}
 #innovatea-app input[type=number]{max-width:180px;font-variant-numeric:tabular-nums}
 #innovatea-app .largo{display:grid;gap:4px;max-width:720px}
@@ -369,3 +370,5 @@
 @media (prefers-reduced-motion:reduce){
   #innovatea-app *{transition:none!important;animation:none!important}
 }
+
+#innovatea-app input[type=tel]{max-width:240px;font-variant-numeric:tabular-nums;letter-spacing:.04em}
