@@ -15,6 +15,7 @@ import {
   RECTORES, DOC_ID, DOC_GRUPO, DOC_ESTUDIANTE, DOC_CIERRE,
   preguntasDe, etiqueta,
 } from "./preguntas.js";
+import { errorDe, maxFichas, minFichas } from "./reglas.js";
 
 export const HOJAS = { RECTORES: "Rectores", DOCENTES: "Docentes", ESTUDIANTES: "Estudiantes" };
 
@@ -44,6 +45,17 @@ function faltantesDe(secciones, store, ambito, indice) {
   return preguntasDe(secciones)
     .filter((q) => !q.opt && visible(q, store) && vacio(store[q.id]))
     .map((q) => ({ id: q.id, ambito, indice, pregunta: `${q.n}. ${q.l}` }));
+}
+
+/** Respuestas que no cuadran con otras (reglas.js). El formulario ya no
+    deja avanzar con ellas; esto es la última barrera antes de enviar, por
+    si llegan de un borrador viejo o de alguien que salte la interfaz. */
+function incoherenciasDe(secciones, store, ambito, indice, ctx) {
+  return preguntasDe(secciones)
+    .filter((q) => visible(q, store))
+    .map((q) => ({ q, m: errorDe(q, store, ctx) }))
+    .filter((x) => x.m)
+    .map(({ q, m }) => ({ id: q.id, ambito, indice, pregunta: `${q.n}. ${q.l}`, error: m }));
 }
 
 /* =====================================================================
@@ -87,26 +99,39 @@ export function limpiarDatos(crudos, rol) {
   const avisos = [];
   let faltantes = [];
 
+  let errores = [];
+  const general = { A: g, S: fichas, i: null };
   if (rol === "rectores") {
     faltantes = faltantesDe(RECTORES.sections, g, "general", null);
-    RECTORES.checks(g).forEach((c) => avisos.push(c.m));
+    errores = incoherenciasDe(RECTORES.sections, g, "general", null, general);
   } else {
-    faltantes = faltantesDe([DOC_ID, DOC_GRUPO, ...DOC_CIERRE], g, "general", null);
+    const secciones = [DOC_ID, DOC_GRUPO, ...DOC_CIERRE];
+    faltantes = faltantesDe(secciones, g, "general", null);
+    errores = incoherenciasDe(secciones, g, "general", null, general);
   }
 
   const necesitaFichas = rol === "docentes" && (g.d5 === "Sí" || g.d7 === "Sí");
   if (rol === "docentes" && necesitaFichas) {
     fichas.forEach((st, i) => {
       faltantes = faltantes.concat(faltantesDe(DOC_ESTUDIANTE, st, "estudiante", i));
+      errores = errores.concat(incoherenciasDe(DOC_ESTUDIANTE, st, "estudiante", i, { A: g, S: fichas, i }));
     });
   }
+  const tope = necesitaFichas ? maxFichas(g) : null;
 
   let mensaje = "";
   if (faltantes.length) {
     mensaje = `Faltan ${faltantes.length} pregunta(s) por responder. Están marcadas en rojo.`;
+  } else if (errores.length) {
+    mensaje = `Hay ${errores.length} respuesta(s) que no cuadran con otras. Corríjala(s) para poder enviar.`;
   } else if (necesitaFichas && fichas.length === 0) {
     mensaje = "Agregue al menos una ficha de estudiante (secciones 2 a 4).";
+  } else if (necesitaFichas && fichas.length < minFichas(g).v) {
+    mensaje = `${minFichas(g).m} Lleva ${fichas.length}.`;
+  } else if (tope && fichas.length > tope.v) {
+    mensaje = `Tiene ${fichas.length} fichas, pero ${tope.m.charAt(0).toLowerCase() + tope.m.slice(1)} Quite las que sobran.`;
   }
+  faltantes = faltantes.concat(errores);
 
   if (mensaje) return { ok: false, faltantes, avisos, mensaje, registro: null, destinos: [] };
 

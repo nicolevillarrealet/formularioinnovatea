@@ -7,20 +7,32 @@
      innovatea:rol    detail = { rol }        se eligió rectores | docentes
      innovatea:enviar detail = { rol }        se pulsó "Enviar respuestas"
 
-   El formulario se muestra POR PASOS: cada sección es una capa y solo se ve
-   una a la vez. "Siguiente" valida la capa actual antes de avanzar; la capa
-   nueva entra desde la derecha y la anterior sale hacia la izquierda (al
-   retroceder, al revés). Todas las capas siguen en el DOM, así que
-   recolector.js lee el formulario completo igual que antes.
+   ESTILO WIZARD: cada pregunta es una pantalla y solo se ve una a la vez.
+   "Siguiente" valida la pregunta actual; la pantalla nueva entra desde la
+   derecha y la anterior sale hacia la izquierda (al retroceder, al revés).
+   En las preguntas de una sola opción, tocar la respuesta ya avanza.
+   Las preguntas condicionales que no aplican se saltan solas.
 
-   El estado vivo (respuestas generales y fichas de estudiante) se mantiene
-   aquí porque la lógica condicional, la barra de progreso y el borrador
-   local dependen de él. La lectura definitiva en el momento del envío la
-   hace recolector.js leyendo el DOM. */
+   En docentes, las fichas de estudiante (secciones 2 a 4) van al final,
+   después de las preguntas sobre el docente, y las abre una pantalla que
+   explica que esa parte es obligatoria. Cada ficha es una serie de
+   pantallas que termina en "Ficha completa", donde se agrega la siguiente.
+   La primera ficha se crea sola en cuanto el docente reporta estudiantes,
+   y hay que llenar una por cada estudiante con autismo de la pregunta 6.
+
+   COHERENCIA: las reglas de reglas.js no son avisos. Una respuesta que no
+   cuadra con las anteriores (más casos que matriculados, "Ninguna" después
+   de reportar casos…) muestra el motivo en rojo y "Siguiente" no avanza
+   hasta corregirla. Las opciones que ya no aplican se deshabilitan y las
+   que se deducen de respuestas previas se marcan solas.
+
+   Todas las pantallas siguen en el DOM, así que recolector.js lee el
+   formulario completo igual que antes. */
 
 import {
   RECTORES, DOC_ID, DOC_GRUPO, DOC_ESTUDIANTE, DOC_CIERRE, INSTITUCIONES,
 } from "./preguntas.js";
+import { conChips, limites, maxSeleccion, opcionesDe, errorDe, maxFichas, minFichas } from "./reglas.js";
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -33,13 +45,15 @@ let rolActual = null;     // "rectores" | "docentes"
 let A = {};               // respuestas generales
 let S = [];               // fichas de estudiante (docentes)
 let registro = [];        // [{ el, q, store, ambito, indice }]
-let pasos = [];           // elementos .paso, en orden
-let pasoActual = 0;
+let actual = null;        // pantalla visible
+let pantallaFinal = null; // "Revise y envíe"
 let finTransicion = null; // cierra de golpe una transición en curso
+let ultimoToque = 0;      // para avanzar solo cuando se toca, no con el teclado
 
 const $ = (sel) => raiz.querySelector(sel);
 const emitir = (nombre, detalle) => raiz.dispatchEvent(new CustomEvent(nombre, { detail: detalle || {} }));
 const sinMovimiento = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+const punteroFino = () => window.matchMedia?.("(pointer: fine)").matches;
 
 /* =====================================================================
    Estructura de la página
@@ -84,7 +98,7 @@ function plantilla() {
       <button class="role" type="button" data-form="docentes">
         <small>Formulario 2 · 6 secciones · 15 min aprox.</small>
         <h3>Docentes de básica primaria</h3>
-        <span>Su grupo, cada estudiante reportado, apoyos pedagógicos y formación.</span>
+        <span>Su grupo, su práctica pedagógica y formación, y la caracterización de cada estudiante con autismo.</span>
         <span class="go">Comenzar →</span>
       </button>
     </div>
@@ -138,6 +152,302 @@ export function mostrar(vista) {
    Renderizado de preguntas
    ===================================================================== */
 
+/* =====================================================================
+   Buscador para listas largas (municipios)
+   ===================================================================== */
+
+/* Sin tildes ni mayúsculas, para que "narino" encuentre "Nariño" y
+   "alban" encuentre "Albán". Los nombres vienen precompuestos (NFC), así
+   que quitar las tildes no cambia la longitud y las posiciones coinciden
+   con el texto original al resaltar la coincidencia. */
+const normalizar = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+const LUPA = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>`;
+
+/**
+ * Campo de búsqueda con la lista filtrada debajo. Al elegir, la lista se
+ * recoge y queda una ficha con el valor y el botón "Cambiar".
+ * El valor elegido viaja en un input oculto [data-valor] que lee recolector.js.
+ */
+function buscador(q, store, id, alElegir) {
+  const nombre = q.buscar;
+  const ctl = document.createElement("div");
+  ctl.className = "buscador";
+  ctl.innerHTML = `
+    <div class="busc-elegido" hidden>
+      <span class="busc-check" aria-hidden="true">✓</span>
+      <strong class="busc-valor"></strong>
+      <button type="button" class="btn ghost small busc-cambiar">Cambiar</button>
+    </div>
+    <div class="busc-panel">
+      <div class="busc-campo">${LUPA}
+        <input type="text" id="i-${id}" autocomplete="off" spellcheck="false" role="combobox"
+          aria-autocomplete="list" aria-expanded="true" aria-controls="lb-${id}"
+          placeholder="Escriba para buscar…">
+      </div>
+      <p class="hint busc-cuenta" aria-live="polite"></p>
+      <ul class="busc-lista" role="listbox" id="lb-${id}" aria-label="${esc(nombre)}"></ul>
+    </div>
+    <input type="hidden" data-valor>`;
+
+  const elegido = ctl.querySelector(".busc-elegido");
+  const panel = ctl.querySelector(".busc-panel");
+  const inp = ctl.querySelector("input[type=text]");
+  const lista = ctl.querySelector(".busc-lista");
+  const cuenta = ctl.querySelector(".busc-cuenta");
+  const oculto = ctl.querySelector("[data-valor]");
+  let opciones = [];
+  let activo = -1;
+
+  const marcarActivo = () => {
+    lista.querySelectorAll("li[role=option]").forEach((li, i) => li.classList.toggle("activo", i === activo));
+    const li = lista.children[activo];
+    if (li && li.getAttribute("role") === "option") {
+      inp.setAttribute("aria-activedescendant", li.id);
+      li.scrollIntoView({ block: "nearest" });
+    } else inp.removeAttribute("aria-activedescendant");
+  };
+
+  const pintar = () => {
+    const t = normalizar(inp.value.trim());
+    opciones = q.o.filter((o) => normalizar(o).includes(t));
+    // Primero los que empiezan por lo escrito, luego los que lo contienen.
+    if (t) opciones.sort((a, b) => normalizar(b).startsWith(t) - normalizar(a).startsWith(t));
+    activo = t && opciones.length ? 0 : -1;
+
+    lista.innerHTML = opciones.map((o, i) => {
+      const k = t ? normalizar(o).indexOf(t) : -1;
+      const texto = k >= 0
+        ? esc(o.slice(0, k)) + `<mark>${esc(o.slice(k, k + t.length))}</mark>` + esc(o.slice(k + t.length))
+        : esc(o);
+      return `<li role="option" id="lb-${id}-${i}" data-v="${esc(o)}" aria-selected="${store[q.id] === o}">${texto}</li>`;
+    }).join("") || `<li class="busc-vacio">No hay ${esc(nombre)} con «${esc(inp.value.trim())}». Revise cómo lo escribió.</li>`;
+
+    cuenta.textContent = !t
+      ? `${q.o.length} ${nombre} · toque uno o escriba para filtrar`
+      : opciones.length === 1 ? "1 coincidencia · Enter para elegirla" : `${opciones.length} coincidencias`;
+    marcarActivo();
+  };
+
+  const mostrarElegido = () => {
+    const v = store[q.id];
+    oculto.value = v || "";
+    elegido.hidden = !v;
+    panel.hidden = !!v;
+    inp.setAttribute("aria-expanded", String(!v));
+    if (v) elegido.querySelector(".busc-valor").textContent = v;
+  };
+
+  const elegir = (v) => {
+    store[q.id] = v;
+    mostrarElegido();
+    cambio(q.id);
+    elegido.querySelector(".busc-cambiar").focus({ preventScroll: true });
+    alElegir();
+  };
+
+  // pointerdown + preventDefault: el campo no pierde el foco al tocar.
+  lista.addEventListener("pointerdown", (e) => { if (e.target.closest("li[role=option]")) e.preventDefault(); });
+  lista.addEventListener("click", (e) => {
+    const li = e.target.closest("li[role=option]");
+    if (li) elegir(li.dataset.v);
+  });
+
+  inp.addEventListener("input", pintar);
+  inp.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (!opciones.length) return;
+      activo = e.key === "ArrowDown"
+        ? Math.min(opciones.length - 1, activo + 1)
+        : Math.max(0, activo - 1);
+      marcarActivo();
+    } else if (e.key === "Enter") {
+      e.preventDefault(); // no enviar el formulario
+      const v = opciones[activo] ?? (opciones.length === 1 ? opciones[0] : null);
+      if (v) elegir(v);
+    } else if (e.key === "Escape" && inp.value) {
+      e.preventDefault();
+      inp.value = "";
+      pintar();
+    }
+  });
+
+  elegido.querySelector(".busc-cambiar").addEventListener("click", () => {
+    elegido.hidden = true;
+    panel.hidden = false;
+    inp.setAttribute("aria-expanded", "true");
+    inp.value = "";
+    pintar();
+    inp.focus();
+  });
+
+  pintar();
+  mostrarElegido();
+  return ctl;
+}
+
+/* =====================================================================
+   Números pequeños: botones del mínimo al 10 y "11 o más"
+   ===================================================================== */
+
+const NA = "Información no disponible";
+
+/**
+ * Botones con los valores posibles (respetando los límites de reglas.js:
+ * si el máximo es 3, solo aparecen 0, 1, 2 y 3). Si el máximo pasa de 10,
+ * el último botón abre un campo para escribir la cifra. El valor viaja en
+ * un input oculto [data-valor] que lee recolector.js.
+ */
+function selectorNumero(q, store, id, alElegir) {
+  const ctl = document.createElement("div");
+  ctl.className = "numsel";
+  ctl.innerHTML = `
+    <div class="chips" role="group"></div>
+    <div class="num-mas" hidden>
+      <input type="number" id="i-${id}" inputmode="numeric" step="1" placeholder="Escriba el número">
+      <span class="hint num-rango"></span>
+    </div>
+    <input type="hidden" data-valor>`;
+  const chips = ctl.querySelector(".chips");
+  const mas = ctl.querySelector(".num-mas");
+  const inp = mas.querySelector("input");
+  const rango = mas.querySelector(".num-rango");
+  const oculto = ctl.querySelector("[data-valor]");
+  let clave = "";
+  let tope = 10;
+  let modoMas = false;
+
+  chips.addEventListener("pointerdown", () => { ultimoToque = Date.now(); });
+  chips.addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    if (b.dataset.mas !== undefined) {
+      modoMas = true;
+      if (typeof store[q.id] !== "number" || store[q.id] <= tope) { delete store[q.id]; inp.value = ""; }
+      cambio();
+      inp.focus();
+      return;
+    }
+    modoMas = false;
+    store[q.id] = b.dataset.na !== undefined ? NA : Number(b.dataset.v);
+    cambio();
+    alElegir();
+  });
+  inp.addEventListener("input", () => {
+    if (inp.value === "") delete store[q.id];
+    else store[q.id] = Math.max(0, Math.floor(Number(inp.value)));
+    cambio();
+  });
+
+  ctl._refrescar = (c) => {
+    const { min, max } = limites(q, store, c);
+    tope = max == null ? 10 : Math.min(max, 10);
+    const hayMas = max == null || max > 10;
+    const k = `${min}|${tope}|${hayMas}`;
+    if (k !== clave) {
+      clave = k;
+      let html = "";
+      for (let v = min; v <= tope; v++) html += `<button type="button" class="chip" data-v="${v}">${v}</button>`;
+      if (hayMas) html += `<button type="button" class="chip chip-mas" data-mas>${Math.max(tope + 1, min)} o más</button>`;
+      if (q.t === "numna") html += `<button type="button" class="chip chip-na" data-na>${NA}</button>`;
+      chips.innerHTML = html;
+      inp.min = String(hayMas ? Math.max(tope + 1, min) : min);
+      if (max != null) inp.max = String(max); else inp.removeAttribute("max");
+      rango.textContent = max != null ? `Máximo ${max}.` : "";
+    }
+    const v = store[q.id];
+    if (typeof v === "number" && v > tope) modoMas = true;
+    if (v === NA) modoMas = false;
+    chips.querySelectorAll(".chip").forEach((b) => {
+      const on = b.dataset.na !== undefined ? v === NA
+        : b.dataset.mas !== undefined ? modoMas
+        : !modoMas && v === Number(b.dataset.v);
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-pressed", String(on));
+    });
+    mas.hidden = !modoMas;
+    if (modoMas && document.activeElement !== inp) inp.value = typeof v === "number" ? v : "";
+    oculto.value = v ?? "";
+  };
+  return ctl;
+}
+
+/** Contexto que reciben las reglas para una entrada del registro. */
+const ctx = (r) => ({ A, S, i: r.indice });
+
+/**
+ * Aplica las reglas de opciones: desmarca lo que ya no aplica, marca lo
+ * que se deduce de respuestas previas y deshabilita en pantalla lo que no
+ * se puede elegir. Va en el orden del formulario, así que cada pregunta
+ * ve ya corregidas las anteriores de las que depende.
+ */
+function aplicarReglas() {
+  registro.forEach((r) => {
+    const { q, store: s } = r;
+    const c = ctx(r);
+    if (r.el._refrescar) r.el._refrescar(c);
+    if (q.t !== "radio" && q.t !== "multi") return;
+
+    const o = opcionesDe(q, s, c);
+    const forzar = new Set(o?.forzar || []);
+    const vetar = new Set(o?.vetar || []);
+    if (o && visible(q, s)) {
+      if (q.t === "radio") {
+        if (forzar.size === 1) s[q.id] = [...forzar][0];
+        else if (vetar.has(s[q.id])) delete s[q.id];
+      } else {
+        let v = (s[q.id] || []).filter((x) => !vetar.has(x));
+        forzar.forEach((x) => { if (!v.includes(x)) v.push(x); });
+        if (q.x && v.length > 1) v = v.filter((x) => x !== q.x);
+        v = q.o.filter((x) => v.includes(x)); // orden original
+        if (v.length) s[q.id] = v; else delete s[q.id];
+      }
+    }
+
+    const tope = q.t === "multi" ? maxSeleccion(q, s, c) : null;
+    const sel = s[q.id];
+    const marcadas = Array.isArray(sel) ? sel.length : 0;
+    let lleno = false;
+    r.el.querySelectorAll(".opts input").forEach((inp) => {
+      const val = inp.value;
+      inp.checked = q.t === "radio" ? sel === val : (sel || []).includes(val);
+      const fijada = forzar.has(val) && (q.t === "multi" || forzar.size === 1);
+      const sinCupo = tope != null && !inp.checked && marcadas >= tope;
+      if (sinCupo) lleno = true;
+      const bloq = vetar.has(val) || fijada || sinCupo;
+      inp.disabled = bloq;
+      inp.closest(".opt").classList.toggle("bloq", bloq);
+      inp.closest(".opt").classList.toggle("fijada", fijada);
+    });
+
+    const partes = [];
+    if (forzar.size) partes.push(`Se marcó según sus respuestas anteriores: ${[...forzar].join(", ")}.`);
+    if (vetar.size) partes.push("Las opciones en gris no aplican según sus respuestas anteriores.");
+    if (tope != null) partes.push(`Puede marcar hasta ${tope}${lleno ? " (ya llegó al máximo)" : ""}.`);
+    const nota = r.el.querySelector(".nota");
+    nota.textContent = partes.join(" ");
+    nota.hidden = !partes.length;
+  });
+}
+
+/** Errores de coherencia de una entrada visible (o null). */
+function errorEn(r) {
+  if (!visible(r.q, r.store)) return null;
+  if (r.ambito === "estudiante" && !requiereFichas()) return null;
+  return errorDe(r.q, r.store, ctx(r));
+}
+
+function mostrarErrores() {
+  registro.forEach((r) => {
+    const m = errorEn(r);
+    const span = r.el.querySelector(".incoh");
+    span.textContent = m || "";
+    span.hidden = !m;
+    r.el.classList.toggle("incoherente", !!m);
+  });
+}
+
 function campo(q, store, prefijo, ambito, indice) {
   const id = prefijo + q.id;
   const enLinea = ["select", "num", "inst", "numna", "text"].includes(q.t);
@@ -149,7 +459,7 @@ function campo(q, store, prefijo, ambito, indice) {
     `${q.opt ? ' <span class="multi-note">(opcional)</span>' : ""}` +
     `${q.t === "multi" ? ' <span class="multi-note">(puede marcar varias)</span>' : ""}</span>`;
   fs.innerHTML = fs.tagName === "FIELDSET"
-    ? `<legend>${etiqueta}</legend>`
+    ? `<legend tabindex="-1">${etiqueta}</legend>`
     : `<label class="lab" for="i-${id}">${etiqueta}</label>`;
 
   let ctl;
@@ -158,6 +468,7 @@ function campo(q, store, prefijo, ambito, indice) {
   if (q.t === "radio" || q.t === "multi") {
     ctl = document.createElement("div");
     ctl.className = "opts";
+    ctl.addEventListener("pointerdown", () => { ultimoToque = Date.now(); });
     q.o.forEach((o, i) => {
       const lab = document.createElement("label");
       lab.className = "opt";
@@ -180,11 +491,21 @@ function campo(q, store, prefijo, ambito, indice) {
           ctl.querySelectorAll("input").forEach((x) => { x.checked = v.has(x.value); });
         }
         cambio();
+        // Una sola opción y elegida con el dedo o el ratón: pasa sola.
+        if (q.t === "radio" && Date.now() - ultimoToque < 1000) {
+          setTimeout(() => { if (actual && actual.contains(fs)) siguiente(); }, 320);
+        }
       });
       const sp = document.createElement("span");
       sp.textContent = o;
       lab.append(inp, sp);
       ctl.append(lab);
+    });
+
+  } else if (q.t === "select" && q.buscar) {
+    // Listas largas (los 64 municipios): buscador en lugar de desplegable.
+    ctl = buscador(q, store, id, () => {
+      setTimeout(() => { if (actual && actual.contains(fs)) siguiente(); }, 320);
     });
 
   } else if (q.t === "select") {
@@ -237,7 +558,15 @@ function campo(q, store, prefijo, ambito, indice) {
       cambio();
     });
 
-  } else { // num, numna
+  } else if (conChips(q)) { // num / numna con números pequeños
+    ctl = selectorNumero(q, store, id, () => {
+      if (Date.now() - ultimoToque < 1000) {
+        setTimeout(() => { if (actual && actual.contains(fs)) siguiente(); }, 320);
+      }
+    });
+    fs._refrescar = ctl._refrescar;
+
+  } else { // num, numna con totales grandes (matrícula, estudiantes a cargo)
     ctl = document.createElement("div");
     ctl.className = "numrow";
     const inp = document.createElement("input");
@@ -268,24 +597,20 @@ function campo(q, store, prefijo, ambito, indice) {
     }
   }
 
+  const nota = document.createElement("span");
+  nota.className = "nota";
+  nota.hidden = true;
   const err = document.createElement("span");
   err.className = "err";
   err.textContent = "Responda esta pregunta para continuar.";
-  const adv = document.createElement("span");
-  adv.className = "warn";
-  adv.hidden = true;
-  fs.append(ctl, err, adv);
+  const incoh = document.createElement("span");
+  incoh.className = "incoh";
+  incoh.setAttribute("role", "alert");
+  incoh.hidden = true;
+  fs.append(ctl, nota, err, incoh);
 
   registro.push({ el: fs, q, store, ambito, indice });
   return fs;
-}
-
-function seccion(sec, store, prefijo, ambito, indice) {
-  const s = document.createElement("div");
-  s.className = "section";
-  s.innerHTML = `<h2 tabindex="-1">${esc(sec.title)}</h2>${sec.hint ? `<p class="hint">${esc(sec.hint)}</p>` : ""}`;
-  sec.qs.forEach((q) => s.append(campo(q, store, prefijo, ambito, indice)));
-  return s;
 }
 
 export const respondida = (q, store) => {
@@ -296,147 +621,245 @@ export const visible = (q, store) => !q.show || q.show(store);
 export const obligatoria = (r) => !r.q.opt;
 
 /* =====================================================================
-   Reacción a cualquier cambio: visibilidad, avisos, progreso, borrador
+   Pantallas
    ===================================================================== */
 
-function cambio(qid) {
-  registro.forEach((r) => {
-    r.el.hidden = !visible(r.q, r.store);
-    if (respondida(r.q, r.store)) r.el.classList.remove("missing");
-    if (qid && r.q.dep === qid && r.el._refill) r.el._refill();
-  });
-
-  registro.forEach((r) => { const w = r.el.querySelector(".warn"); w.hidden = true; w.textContent = ""; });
-  if (rolActual === "rectores") {
-    RECTORES.checks(A).forEach((c) => {
-      const r = registro.find((x) => x.q.id === c.q && x.store === A);
-      if (!r) return;
-      const w = r.el.querySelector(".warn");
-      w.textContent = c.m;
-      w.hidden = false;
-    });
-  }
-  if (rolActual === "docentes") sincronizarFichas();
-
-  const vis = registro.filter((r) => visible(r.q, r.store) && obligatoria(r));
-  const hechas = vis.filter((r) => respondida(r.q, r.store)).length;
-  $("#count").textContent = `${hechas}/${vis.length}`;
-  $("#barFill").style.width = (vis.length ? (hechas / vis.length) * 100 : 0) + "%";
-  actualizarNav();
-  guardarBorrador();
-}
-
-/* =====================================================================
-   Pasos (capas)
-   ===================================================================== */
-
-/** Envuelve una o varias secciones en una capa. `condicion` decide si la
-    capa aplica (la de fichas solo aplica si el docente reportó estudiantes). */
-function paso(contenido, condicion) {
+/** Una pantalla del wizard. `aplica` decide si se muestra o se salta. */
+function pantalla(contenido, aplica) {
   const p = document.createElement("div");
-  p.className = "paso";
+  p.className = "pantalla";
   p.hidden = true;
-  if (condicion) p._aplica = condicion;
+  if (aplica) p._aplica = aplica;
   p.append(contenido);
-  pasos.push(p);
   return p;
 }
 
-const pasoAplica = (i) => !pasos[i]._aplica || pasos[i]._aplica();
-const pasosVisibles = () => pasos.map((_, i) => i).filter(pasoAplica);
-
-function actualizarNav() {
-  const nav = $("#pasoNav");
-  if (!nav || !pasos.length) return;
-  const vis = pasosVisibles();
-  const pos = vis.indexOf(pasoActual);
-  const ultimo = pos === vis.length - 1;
-
-  $("#pasoTxt").textContent = `Paso ${pos + 1} de ${vis.length}`;
-  $("#pasoSeg").innerHTML = vis.map((_, k) =>
-    `<i class="${k < pos ? "hecho" : k === pos ? "actual" : ""}"></i>`).join("");
-
-  $("#prev").hidden = pos <= 0;
-  $("#next").hidden = ultimo;
-  $("#send").hidden = !ultimo;
-  $("#sendHint").hidden = !ultimo;
+/** Una pantalla por pregunta de la sección, con el nombre de la sección
+    arriba y la ayuda de la sección en la primera pregunta. */
+function pantallasDeSeccion(sec, store, prefijo, ambito, indice, antetitulo, condicion) {
+  return sec.qs.map((q, k) => {
+    const caja = document.createElement("div");
+    const titulo = (antetitulo ? antetitulo + " · " : "") + sec.title;
+    caja.innerHTML = `<p class="pantalla-sec">${esc(titulo)}</p>` +
+      (k === 0 && sec.hint ? `<p class="hint pantalla-hint">${esc(sec.hint)}</p>` : "");
+    caja.append(campo(q, store, prefijo, ambito, indice));
+    registro[registro.length - 1].grupo = titulo; // para el resumen final
+    const p = pantalla(caja, () => (!condicion || condicion()) && visible(q, store));
+    if (ambito === "estudiante") p.dataset.ficha = indice;
+    return p;
+  });
 }
 
-/** Cambia de capa con la animación correspondiente a la dirección. */
-function cambiarPaso(destino) {
+const todas = () => [...$("#capas").querySelectorAll(".pantalla")];
+const aplica = (p) => !p._aplica || p._aplica();
+const visibles = () => todas().filter(aplica);
+
+/** La pantalla aplicable más cercana hacia adelante (1) o atrás (-1). */
+function vecino(dir) {
+  const lista = todas();
+  const i = lista.indexOf(actual);
+  return dir > 0
+    ? lista.slice(i + 1).find(aplica)
+    : lista.slice(0, Math.max(i, 0)).reverse().find(aplica);
+}
+
+/** Enunciado corto para el resumen: sin signos de pregunta y recortado. */
+const corto = (l) => {
+  const t = l.replace(/[¿?]/g, "").trim();
+  return t.length > 58 ? t.slice(0, 56).trimEnd() + "…" : t;
+};
+const valorLegible = (v) => Array.isArray(v) ? v.join(", ") : String(v);
+
+/** Lista muy resumida de lo respondido, agrupada por sección. Cada línea
+    lleva de vuelta a su pregunta para corregirla. */
+function pintarResumen() {
+  const caja = $("#resumenLista");
+  if (!caja) return;
+  const filas = registro.filter((r) => visible(r.q, r.store) && respondida(r.q, r.store)
+    && (r.ambito !== "estudiante" || requiereFichas()));
+  // Mismo orden que el recorrido del formulario.
+  const orden = todas();
+  const pos = (r) => orden.findIndex((p) => p.contains(r.el));
+  filas.sort((a, b) => pos(a) - pos(b));
+
+  let html = "", grupo = null;
+  filas.forEach((r, k) => {
+    if (r.grupo !== grupo) {
+      if (grupo !== null) html += "</div>";
+      grupo = r.grupo;
+      html += `<p class="resumen-sec">${esc(grupo)}</p><div class="resumen-filas">`;
+    }
+    const malo = errorEn(r) ? " malo" : "";
+    html += `<button type="button" class="resumen-fila${malo}" data-k="${k}" title="Volver a esta pregunta">
+      <span class="resumen-n">${esc(r.q.n)}</span>
+      <span class="resumen-q">${esc(corto(r.q.l))}</span>
+      <span class="resumen-v">${esc(valorLegible(r.store[r.q.id]))}</span></button>`;
+  });
+  if (grupo !== null) html += "</div>";
+  caja.innerHTML = html || `<p class="hint">Aún no hay respuestas.</p>`;
+  caja.querySelectorAll(".resumen-fila").forEach((b) =>
+    b.addEventListener("click", () => llevarA(filas[Number(b.dataset.k)].el)));
+}
+
+function actualizarNav() {
+  if (!actual || !$("#pasoNav")) return;
+  const v = visibles();
+  const pos = Math.max(0, v.indexOf(actual));
+  const final = actual === pantallaFinal;
+
+  $("#pasoTxt").textContent = `${pos + 1} de ${v.length}`;
+  $("#pasoBar").style.width = (v.length > 1 ? (pos / (v.length - 1)) * 100 : 100) + "%";
+  $("#prev").hidden = !vecino(-1);
+  $("#next").hidden = final;
+  $("#send").hidden = !final;
+
+  const intro = actual.querySelector("[data-intro-texto]");
+  if (intro) intro.textContent = textoIntroFichas();
+
+  const fin = actual.querySelector(".fin-ficha");
+  if (fin) {
+    const i = Number(fin.dataset.ficha);
+    fin.querySelector("[data-cuenta]").textContent = textoFinFicha(i);
+    const add = fin.querySelector("[data-add]");
+    if (add) add.hidden = S.length >= maxFichas(A).v;
+  }
+
+  if (final) pintarResumen();
+
+  if (final) {
+    const vis = registro.filter((r) => visible(r.q, r.store) && obligatoria(r)
+      && (r.ambito !== "estudiante" || requiereFichas()));
+    const hechas = vis.filter((r) => respondida(r.q, r.store)).length;
+    const malas = registro.filter((r) => errorEn(r)).length;
+    $("#resumenFin").textContent = malas
+      ? `Hay ${malas} respuesta(s) que no cuadran con otras. Al enviar le llevaremos a la primera para corregirla.`
+      : hechas === vis.length
+        ? `Respondió las ${vis.length} preguntas obligatorias. Puede volver atrás para revisar o enviar ahora.`
+        : `Respondió ${hechas} de ${vis.length} preguntas obligatorias. Al enviar le llevaremos a las que faltan.`;
+  }
+}
+
+/** Muestra otra pantalla con la animación según la dirección. */
+function cambiarA(destino, adelante) {
+  if (!destino) return;
   if (finTransicion) finTransicion();
-  const viejo = pasos[pasoActual];
-  const nuevo = pasos[destino];
-  const adelante = destino > pasoActual;
-  pasoActual = destino;
+  const viejo = actual;
+  const lista = todas();
+  if (adelante === undefined) adelante = lista.indexOf(destino) > lista.indexOf(viejo);
+  actual = destino;
   mensaje("");
   actualizarNav();
 
-  const enfocar = () => {
-    const h = nuevo.querySelector("h2");
-    if (h) h.focus({ preventScroll: true });
-  };
-  $("#formView").scrollIntoView({ behavior: sinMovimiento() ? "auto" : "smooth", block: "start" });
+  const fv = $("#formView");
+  if (fv.getBoundingClientRect().top < 0) fv.scrollIntoView({ behavior: sinMovimiento() ? "auto" : "smooth", block: "start" });
 
-  if (!viejo || viejo === nuevo || sinMovimiento()) {
-    pasos.forEach((p, i) => { p.hidden = i !== destino; });
-    enfocar();
+  if (!viejo || viejo === destino || !viejo.isConnected || sinMovimiento()) {
+    lista.forEach((p) => { p.hidden = p !== destino; });
+    enfocar(destino);
     return;
   }
 
   const cEntra = adelante ? "entra-der" : "entra-izq";
   const cSale = adelante ? "sale-izq" : "sale-der";
+
+  // Sin esto, el contenedor saltaría de golpe a la altura de la tarjeta
+  // nueva y quedaría un hueco en blanco (o la navegación brincaría).
+  // Se fija la altura actual y se anima hasta la de la tarjeta que entra.
+  const capas = $("#capas");
+  const altoAntes = capas.offsetHeight;
   viejo.classList.add("saliendo", cSale);
-  nuevo.hidden = false;
-  nuevo.classList.add(cEntra);
+  destino.hidden = false;
+  destino.classList.add(cEntra);
+  const altoDespues = capas.offsetHeight;
+  capas.style.height = altoAntes + "px";
+  void capas.offsetHeight; // aplica la altura inicial antes de animar
+  capas.style.height = altoDespues + "px";
 
   const t = setTimeout(() => finTransicion && finTransicion(), 460);
   finTransicion = () => {
     clearTimeout(t);
     viejo.hidden = true;
     viejo.classList.remove("saliendo", cSale);
-    nuevo.classList.remove(cEntra);
+    destino.classList.remove(cEntra);
+    capas.style.height = "";
     finTransicion = null;
   };
-  enfocar();
+  enfocar(destino);
 }
 
-/** Preguntas obligatorias sin responder dentro de una capa. */
-function faltantesDelPaso(i) {
-  const p = pasos[i];
-  return registro.filter((r) => p.contains(r.el) && visible(r.q, r.store) && obligatoria(r) && !respondida(r.q, r.store));
+/** En computador se enfoca el campo para escribir de una vez; en el
+    celular solo el enunciado, para no abrir el teclado sin pedirlo. */
+function enfocar(p) {
+  const campoTexto = [...p.querySelectorAll('input[type="text"], input[type="number"], select')]
+    .find((x) => !x.closest("[hidden]"));
+  if (campoTexto && punteroFino()) { campoTexto.focus({ preventScroll: true }); return; }
+  const h = p.querySelector("legend, .lab, h2");
+  if (h) { if (!h.hasAttribute("tabindex")) h.tabIndex = -1; h.focus({ preventScroll: true }); }
 }
 
 function siguiente() {
-  const falta = faltantesDelPaso(pasoActual);
-  if (falta.length) {
+  const aqui = registro.filter((r) => actual.contains(r.el) && visible(r.q, r.store));
+  const falta = aqui.filter((r) => obligatoria(r) && !respondida(r.q, r.store));
+  const malas = aqui.filter((r) => errorEn(r));
+  if (falta.length || malas.length) {
     falta.forEach((r) => r.el.classList.add("missing"));
-    falta[0].el.scrollIntoView({ behavior: "smooth", block: "center" });
-    mensaje(`Faltan ${falta.length} pregunta(s) en este paso. Están marcadas en rojo.`);
+    // Sacude la tarjeta para que se note que no avanzó.
+    [...falta, ...malas].forEach((r) => {
+      r.el.classList.remove("sacudir");
+      void r.el.offsetWidth;
+      r.el.classList.add("sacudir");
+    });
     return;
   }
-  if (pasos[pasoActual].contains($("#students")) && requiereFichas() && S.length === 0) {
-    mensaje("Agregue al menos una ficha de estudiante para continuar.");
-    return;
+  if (actual.querySelector(".fin-ficha")) {
+    const tope = maxFichas(A);
+    if (S.length > tope.v) {
+      mensaje(`Tiene ${S.length} fichas, pero ${tope.m.charAt(0).toLowerCase() + tope.m.slice(1)} Quite las que sobran para continuar.`);
+      return;
+    }
+    // Desde la última ficha no se pasa a enviar sin las fichas obligatorias.
+    const minimo = minFichas(A);
+    const esUltima = Number(actual.querySelector(".fin-ficha").dataset.ficha) === S.length - 1;
+    if (esUltima && S.length < minimo.v) {
+      mensaje(`${minimo.m} Lleva ${S.length}. Pulse «+ Agregar otro estudiante» para continuar con la siguiente ficha.`);
+      return;
+    }
   }
-  const vis = pasosVisibles();
-  const pos = vis.indexOf(pasoActual);
-  if (pos < vis.length - 1) cambiarPaso(vis[pos + 1]);
+  cambiarA(vecino(1), true);
 }
 
 function anterior() {
-  const vis = pasosVisibles();
-  const pos = vis.indexOf(pasoActual);
-  if (pos > 0) cambiarPaso(vis[pos - 1]);
+  cambiarA(vecino(-1), false);
 }
 
-/** Lleva a la capa que contiene un elemento y, al terminar la entrada,
-    lo desplaza a la vista. */
-function llevarA(el, bloque = "center") {
-  const i = pasos.findIndex((p) => p.contains(el));
-  const desplazar = () => el.scrollIntoView({ behavior: "smooth", block: bloque });
-  if (i >= 0 && i !== pasoActual) { cambiarPaso(i); setTimeout(desplazar, sinMovimiento() ? 0 : 480); }
-  else desplazar();
+/** Lleva a la pantalla que contiene un elemento. */
+function llevarA(el) {
+  const p = todas().find((x) => x.contains(el));
+  if (p && p !== actual) cambiarA(p);
+}
+
+/* =====================================================================
+   Reacción a cualquier cambio: avisos, progreso, borrador
+   ===================================================================== */
+
+function cambio(qid) {
+  // La primera ficha aparece sola en cuanto el docente reporta estudiantes.
+  if (requiereFichas() && S.length === 0) { S.push({}); renderizarFichas(); return; }
+
+  aplicarReglas();
+  registro.forEach((r) => {
+    if (respondida(r.q, r.store)) r.el.classList.remove("missing");
+    if (qid && r.q.dep === qid && r.el._refill) r.el._refill();
+  });
+  mostrarErrores();
+
+  const vis = registro.filter((r) => visible(r.q, r.store) && obligatoria(r)
+    && (r.ambito !== "estudiante" || requiereFichas()));
+  const hechas = vis.filter((r) => respondida(r.q, r.store)).length;
+  $("#count").textContent = `${hechas}/${vis.length}`;
+  $("#barFill").style.width = (vis.length ? (hechas / vis.length) * 100 : 0) + "%";
+  actualizarNav();
+  guardarBorrador();
 }
 
 /* =====================================================================
@@ -446,8 +869,7 @@ function llevarA(el, bloque = "center") {
 export function renderizarFormulario(rol) {
   rolActual = rol;
   registro = [];
-  pasos = [];
-  pasoActual = 0;
+  actual = null;
   if (finTransicion) finTransicion();
   const f = $("#form");
   f.innerHTML = "";
@@ -458,38 +880,38 @@ export function renderizarFormulario(rol) {
 
   const ind = document.createElement("div");
   ind.className = "pasos-ind";
-  ind.innerHTML = `<span id="pasoTxt"></span><span class="seg" id="pasoSeg" aria-hidden="true"></span>`;
+  ind.innerHTML = `<span id="pasoTxt"></span><span class="progreso" aria-hidden="true"><i id="pasoBar"></i></span>`;
   f.append(ind);
 
   const capas = document.createElement("div");
   capas.className = "pasos";
+  capas.id = "capas";
   f.append(capas);
+
+  const agregar = (lista) => lista.forEach((p) => capas.append(p));
 
   if (rol === "rectores") {
     $("#formTitle").textContent = "Rectores";
     $("#formIntro").innerHTML = `<h2 class="titulo">${esc(RECTORES.title)}</h2><p class="hint">Responda con la información institucional disponible. Las cantidades se escriben en números enteros.</p>`;
-    RECTORES.sections.forEach((s) => capas.append(paso(seccion(s, A, "", "general", null))));
+    RECTORES.sections.forEach((s) => agregar(pantallasDeSeccion(s, A, "", "general", null)));
   } else {
     $("#formTitle").textContent = "Docentes";
-    $("#formIntro").innerHTML = `<h2 class="titulo">Encuesta para docentes</h2><p class="hint">Primero describa su grupo. Luego diligencie una ficha (secciones 2 a 4) por cada estudiante con autismo u otra condición del neurodesarrollo reportada, sin nombres ni documentos. Al final responda las secciones 5 y 6.</p>`;
-    capas.append(paso(seccion(DOC_ID, A, "", "general", null)));
-    capas.append(paso(seccion(DOC_GRUPO, A, "", "general", null)));
-
-    const st = document.createElement("div");
-    st.id = "students";
-    st.className = "section";
-    st.innerHTML = `<h2 tabindex="-1">Fichas por estudiante</h2><p class="hint" id="stHint"></p><div id="stList"></div><div class="actions" style="margin-top:14px"><button type="button" class="btn ghost" id="addSt">+ Agregar ficha de estudiante</button></div>`;
-    capas.append(paso(st, requiereFichas));
-
-    DOC_CIERRE.forEach((s) => capas.append(paso(seccion(s, A, "", "general", null))));
-    st.querySelector("#addSt").addEventListener("click", () => {
-      S.push({});
-      renderizarFichas();
-      mensaje("");
-      const ultima = $("#stList").lastElementChild;
-      if (ultima) ultima.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
+    $("#formIntro").innerHTML = `<h2 class="titulo">Encuesta para docentes</h2><p class="hint">Primero describa su grupo y responda las preguntas sobre su práctica pedagógica y su formación. Al final caracterice a cada estudiante con autismo que reportó, sin nombres ni documentos.</p>`;
+    // Orden: el docente responde primero lo que es sobre él y su grupo, y
+    // al final caracteriza a cada estudiante (secciones 2 a 4, fichas).
+    agregar(pantallasDeSeccion(DOC_ID, A, "", "general", null));
+    agregar(pantallasDeSeccion(DOC_GRUPO, A, "", "general", null));
+    DOC_CIERRE.forEach((s) => agregar(pantallasDeSeccion(s, A, "", "general", null)));
+    capas.append(pantallaIntroFichas());
+    const zona = document.createElement("div");
+    zona.id = "zonaFichas";
+    capas.append(zona);
   }
+
+  const fin = document.createElement("div");
+  fin.innerHTML = `<p class="pantalla-sec">Último paso</p><h2 tabindex="-1">Revise y envíe</h2><p class="hint" id="resumenFin"></p><div class="resumen" id="resumenLista"></div>`;
+  pantallaFinal = pantalla(fin);
+  capas.append(pantallaFinal);
 
   const nav = document.createElement("div");
   nav.className = "actions pasos-nav";
@@ -497,57 +919,128 @@ export function renderizarFormulario(rol) {
   nav.innerHTML = `
     <button type="button" class="btn ghost" id="prev">← Anterior</button>
     <button type="button" class="btn" id="next">Siguiente →</button>
-    <button type="submit" class="btn" id="send">Enviar respuestas</button>
-    <span class="hint" id="sendHint">Revise que todas las preguntas visibles estén respondidas.</span>`;
+    <button type="submit" class="btn" id="send">Enviar respuestas</button>`;
   f.append(nav);
   f.append(Object.assign(document.createElement("div"), { id: "formMsg" }));
 
   $("#prev").addEventListener("click", anterior);
   $("#next").addEventListener("click", siguiente);
 
-  // Enter dentro de un campo avanza de paso; solo en el último envía.
+  // Enter dentro de un campo avanza; solo en la pantalla final envía.
   f.onsubmit = (e) => {
     e.preventDefault();
-    const vis = pasosVisibles();
-    if (vis.indexOf(pasoActual) < vis.length - 1) { siguiente(); return; }
+    if (actual !== pantallaFinal) { siguiente(); return; }
     emitir("innovatea:enviar", { rol });
   };
 
-  pasos[0].hidden = false;
   if (rol === "docentes") renderizarFichas(); else cambio();
+
+  // Con un borrador a medias, se retoma en la primera pregunta sin responder.
+  const v = visibles();
+  const pendiente = v.find((p) => registro.some((r) => p.contains(r.el) && obligatoria(r) && visible(r.q, r.store) && !respondida(r.q, r.store)));
+  actual = pendiente || v[0];
+  actual.hidden = false;
+  actualizarNav();
   mostrar("formView");
+}
+
+/* ---------- Fichas de estudiante ---------- */
+
+/** Pantalla que abre la última parte: deja claro que viene la
+    caracterización de cada estudiante y que es obligatoria. */
+function pantallaIntroFichas() {
+  const caja = document.createElement("div");
+  caja.className = "intro-fichas";
+  caja.innerHTML = `
+    <p class="pantalla-sec">Última parte · Secciones 2, 3 y 4</p>
+    <h2 tabindex="-1">Caracterización de sus estudiantes con autismo</h2>
+    <p class="obligatorio"><strong>Esta parte es OBLIGATORIA.</strong> Sin ella no se puede enviar la encuesta.</p>
+    <p data-intro-texto></p>
+    <ul class="intro-lista">
+      <li>Cada ficha tiene tres secciones: datos sociodemográficos, salud y acceso a servicios, y permanencia escolar.</li>
+      <li><strong>No escriba nombres ni documentos</strong>: el estudiante se identifica solo como «Estudiante 1», «Estudiante 2»…</li>
+      <li>Si no conoce un dato, elija «Información no disponible».</li>
+    </ul>`;
+  return pantalla(caja, requiereFichas);
+}
+
+function textoIntroFichas() {
+  const tope = minFichas(A);
+  const otras = A.d7 === "Sí" ? " Si reportó estudiantes con otras condiciones del neurodesarrollo, haga también una ficha para cada uno." : "";
+  return A.d5 === "Sí" && tope.v > 1
+    ? `En la pregunta 6 reportó ${tope.v} estudiantes con autismo: debe diligenciar una ficha por cada uno, es decir, ${tope.v} fichas.${otras}`
+    : A.d5 === "Sí"
+      ? `En la pregunta 6 reportó 1 estudiante con autismo: debe diligenciar su ficha.${otras}`
+      : `Diligencie una ficha por cada estudiante con una condición del neurodesarrollo reportada en su grupo.`;
 }
 
 function renderizarFichas() {
   registro = registro.filter((r) => r.store === A);
-  const lista = $("#stList");
-  lista.innerHTML = "";
+  const zona = $("#zonaFichas");
+  zona.innerHTML = "";
   S.forEach((st, i) => {
-    const card = document.createElement("article");
-    card.className = "student";
-    card.innerHTML = `<header><h3>Estudiante ${i + 1}</h3><button type="button" class="btn ghost small" data-rm="${i}">Quitar ficha</button></header>`;
-    DOC_ESTUDIANTE.forEach((s) => card.append(seccion(s, st, `s${i}-`, "estudiante", i)));
-    lista.append(card);
+    DOC_ESTUDIANTE.forEach((sec) =>
+      pantallasDeSeccion(sec, st, `s${i}-`, "estudiante", i, `Estudiante ${i + 1}`, requiereFichas)
+        .forEach((p) => zona.append(p)));
+    zona.append(pantallaFinFicha(i));
   });
-  // Quitar ficha pide una segunda pulsación: evita borrados accidentales.
-  lista.querySelectorAll("[data-rm]").forEach((b) =>
-    b.addEventListener("click", () => {
-      const i = Number(b.dataset.rm);
-      if (b.dataset.armed) { S.splice(i, 1); renderizarFichas(); return; }
-      b.dataset.armed = "1";
-      b.textContent = "¿Quitar? Toque de nuevo";
-      setTimeout(() => { if (b.isConnected) { delete b.dataset.armed; b.textContent = "Quitar ficha"; } }, 3000);
-    }));
   cambio();
 }
 
-function sincronizarFichas() {
-  const h = $("#stHint");
-  if (!h) return;
+/* Se calcula al mostrar la pantalla, porque la pregunta 6 (cuántos
+   estudiantes) puede responderse después de creada la primera ficha. */
+function textoFinFicha(i) {
   const n = Number(A.d6 || 0);
-  h.textContent = requiereFichas()
-    ? `Registró ${A.d5 === "Sí" ? n + " estudiante(s) con autismo" : "estudiantes con otras condiciones"}. Lleva ${S.length} ficha(s) diligenciada(s).`
-    : "";
+  const tope = maxFichas(A);
+  const cuenta = A.d5 === "Sí" && n
+    ? `Lleva ${S.length} ficha(s) de ${n} estudiante(s) con autismo que reportó.`
+    : `Lleva ${S.length} ficha(s).`;
+  if (i !== S.length - 1) return cuenta;
+  const minimo = minFichas(A);
+  if (S.length < minimo.v) return `${cuenta} Faltan ${minimo.v - S.length} ficha(s) obligatoria(s): agregue el siguiente estudiante.`;
+  if (S.length >= tope.v) return `${cuenta} ${tope.m} Ya no se pueden agregar más.`;
+  return `${cuenta} Si tiene otro estudiante para reportar, agréguelo; si no, continúe.`;
+}
+
+function pantallaFinFicha(i) {
+  const caja = document.createElement("div");
+  caja.className = "fin-ficha";
+  const ultima = i === S.length - 1;
+  caja.dataset.ficha = i;
+  caja.innerHTML = `
+    <p class="pantalla-sec">Estudiante ${i + 1}</p>
+    <h2 tabindex="-1">Ficha del estudiante ${i + 1} completa</h2>
+    <p class="hint" data-cuenta></p>
+    <div class="actions">
+      ${ultima ? `<button type="button" class="btn ghost" data-add>+ Agregar otro estudiante</button>` : ""}
+      ${S.length > 1 ? `<button type="button" class="btn ghost small" data-rm>Quitar esta ficha</button>` : ""}
+    </div>`;
+
+  const add = caja.querySelector("[data-add]");
+  if (add) add.addEventListener("click", () => {
+    if (S.length >= maxFichas(A).v) return;
+    S.push({});
+    renderizarFichas();
+    const nueva = todas().find((p) => p.dataset.ficha === String(S.length - 1) && aplica(p));
+    cambiarA(nueva, true);
+  });
+
+  // Quitar pide una segunda pulsación: evita borrados accidentales.
+  const rm = caja.querySelector("[data-rm]");
+  if (rm) rm.addEventListener("click", () => {
+    if (!rm.dataset.armed) {
+      rm.dataset.armed = "1";
+      rm.textContent = "¿Quitar? Toque de nuevo";
+      setTimeout(() => { if (rm.isConnected) { delete rm.dataset.armed; rm.textContent = "Quitar esta ficha"; } }, 3000);
+      return;
+    }
+    S.splice(i, 1);
+    renderizarFichas();
+    const fines = [...$("#zonaFichas").querySelectorAll(".pantalla")].filter((p) => p.querySelector(".fin-ficha"));
+    cambiarA(fines[Math.max(0, i - 1)], false);
+  });
+
+  return pantalla(caja, requiereFichas);
 }
 
 /** ¿El rol y las respuestas actuales exigen al menos una ficha de estudiante? */
@@ -562,7 +1055,7 @@ export const rol = () => rolActual;
 export const numeroDeFichas = () => S.length;
 
 /** Recibe descriptores { id, ambito, indice } de transformador.js, resalta
-    las preguntas correspondientes y lleva a la capa de la primera. */
+    las preguntas correspondientes y lleva a la primera. */
 export function marcarFaltantes(faltantes) {
   const elementos = faltantes
     .map((f) => registro.find((r) => r.q.id === f.id && r.ambito === f.ambito && r.indice === f.indice))
@@ -578,7 +1071,7 @@ export function mensaje(html, clase = "bad") {
 
 export function irA(sel) {
   const el = $(sel);
-  if (el) llevarA(el, "start");
+  if (el) llevarA(el);
 }
 
 export function bloquearEnvio(bloqueado, texto) {
