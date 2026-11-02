@@ -1,13 +1,17 @@
 # INNOVATEA — Formulario de caracterización
 
 Encuestas de caracterización del proyecto **INNOVATEA: Voces diversas, futuros posibles**
-(Gobernación de Nariño). Dos formularios —rectores y docentes de básica primaria— que se
+(Gobernación de Nariño). Dos formularios —docentes de apoyo pedagógico y docentes de básica
+primaria— que se
 incrustan en WordPress con una sola etiqueta y escriben cada respuesta en una hoja de Google
 Sheets.
 
-- **Formulario 1 · Rectores:** 28 preguntas, caracterización institucional y poblacional.
-- **Formulario 2 · Docentes:** 46 preguntas en 6 secciones. Las secciones 2 a 4 se repiten
-  una vez por cada estudiante reportado, sin nombres ni documentos.
+- **Formulario 1 · Docentes de apoyo:** 18 preguntas de caracterización institucional y
+  poblacional (en el código sigue llamándose `rectores`, y sus envíos `tipo: "rector"`, para
+  no cambiar las claves ya guardadas).
+- **Formulario 2 · Docentes de básica primaria:** 18 preguntas.
+- **Fichas de caracterización (F1–F21):** al final de los dos formularios, una por cada
+  estudiante con trastorno del espectro autista (TEA) reportado, sin nombres ni documentos.
 
 ---
 
@@ -16,14 +20,14 @@ Sheets.
 En la página donde va la encuesta, agregue un bloque **HTML personalizado** y pegue esto:
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@v1.4.2/main.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@v1.5.0/main.js"></script>
 ```
 
 Eso es todo. El formulario se monta justo donde esté el bloque; la etiqueta carga el
 controlador y el controlador trae por su cuenta los estilos y los demás módulos. No hace falta
 plugin, ni FTP, ni subir archivos al hosting.
 
-**Para publicar un cambio:** `git tag v1.4.3 && git push origin v1.4.3`, y cambie el número en
+**Para publicar un cambio:** `git tag v1.5.1 && git push origin v1.5.1`, y cambie el número en
 la línea de WordPress.
 
 > **Por qué una etiqueta y no `@main`.** jsDelivr le dice al navegador que guarde estos archivos
@@ -57,7 +61,8 @@ está expuesto a internet no tiene ninguna función que devuelva datos: aunque a
 su URL, no hay nada que pueda consultar.
 
 **Qué protege al endpoint público.** Solo acepta las acciones `pedirCodigo`, `verificarCodigo` y `registrar`, solo escribe en las tres
-pestañas de la lista blanca (`Rectores`, `Docentes`, `Estudiantes`), rechaza cuerpos de más de
+pestañas de la lista blanca (`Docentes de apoyo`, `Docentes`, `Estudiantes`, y `Rectores` solo
+para envíos de la página anterior), rechaza cuerpos de más de
 300 000 caracteres y más de 120 filas por envío, recorta cada celda a 2 000 caracteres, frena
 las ráfagas a 60 envíos por minuto y neutraliza el texto que empiece por `=`, `+`, `-` o `@`
 para que Excel no lo ejecute como fórmula. No puede leer, ni modificar, ni borrar, ni tocar
@@ -72,7 +77,7 @@ institucional). Quien decide es `Codigo.gs`, no el navegador:
    volver sin pedir otro código.
 2. Al enviar, lee el correo del pase —no el que diga el navegador— y lo escribe en la columna
    `correo_verificado`. Un pase alterado o vencido se rechaza.
-3. **Una encuesta por correo:** cada correo puede responder una sola, de rector **o** de
+3. **Una encuesta por correo:** cada correo puede responder una sola, de docente de apoyo **o** de
    docente. La pestaña `_correos` lleva la cuenta; si el correo ya respondió cualquiera de las
    dos, ambas tarjetas aparecen bloqueadas desde el inicio y el servidor rechaza otro envío.
 4. **Frenos contra abuso:** un código por correo cada minuto y máximo 5 al día; máximo 300 por
@@ -152,9 +157,9 @@ Cada envío viaja en un solo POST y se reparte en tres pestañas:
 
 | Pestaña | Una fila por | Se une con |
 |---|---|---|
-| `Rectores` | encuesta de rector | — |
+| `Docentes de apoyo` | encuesta de docente de apoyo | — |
 | `Docentes` | encuesta de docente | — |
-| `Estudiantes` | ficha de caracterización (estudiante con autismo) | `id_envio` de la pestaña `Docentes` |
+| `Estudiantes` | ficha de caracterización (estudiante con TEA); la columna `encuesta` dice de cuál formulario viene | `id_envio` de `Docentes de apoyo` o `Docentes` |
 | `_envios` | envío completo en JSON | uso interno del panel |
 
 Las tres primeras son las legibles: se descargan con **Archivo → Descargar → Microsoft Excel
@@ -172,12 +177,26 @@ que consulta el panel y no hace falta mirarla.
 
 Así se cuenta con `SUMA` o `CONTAR.SI` y se filtra directamente, sin separar textos.
 
-**Numeración.** Rectores: 1 a 28. Docentes: 1 a 22, en el orden en que se responden. Ficha de
-caracterización: F1 a F25, aparte, porque se repite una vez por estudiante con autismo.
+**Numeración.** Toda pregunta que solo aparece por una respuesta anterior es subpregunta de la
+que la abre (6.1, 8.1, 12.1, 16.1, 17.3…), incluido el texto que se pide al elegir «Otra» u
+«Otras». Así la secuencia principal nunca salta. Docentes de apoyo: 1 a 18.
+Docentes: 1 a 18. Ficha de caracterización: F1 a F21, aparte, porque se repite una vez por
+estudiante con TEA.
+
+**Autorización de datos.** Cada fila de `Docentes de apoyo` y `Docentes` lleva
+`autoriza_tratamiento_datos` (SÍ) y `fecha_autorizacion` (cuándo marcó la casilla, con enlace a
+la Política de tratamiento de datos personales de la Gobernación). `Codigo.gs` rechaza un envío
+verificado que no la traiga, y `_envios` guarda la misma constancia.
+
+**Siglas.** Ninguna sigla va sola: «Trastorno del espectro autista (TEA)», «Trastorno por déficit
+de atención e hiperactividad (TDAH)», «Plan Individual de Ajustes Razonables (PIAR)», «Sistema
+Integrado de Matrícula (SIMAT)», «Entidad Promotora de Salud (EPS)». Las respuestas guardadas con
+los nombres anteriores («Autismo», «TDAH»…) se leen con los nuevos al reorganizar la hoja
+(`ALIAS` en `preguntas.js`).
 
 **Reorganizar las pestañas.** Si la hoja tiene filas de versiones anteriores (respuestas
 múltiples en una sola celda, numeración vieja), abra el panel y pulse **Reorganizar hojas con el
-formato actual**. Rearma `Rectores`, `Docentes` y `Estudiantes` desde `_envios` con el formato de
+formato actual**. Rearma `Docentes de apoyo`, `Docentes` y `Estudiantes` desde `_envios` con el formato de
 arriba. No borra nada: las pestañas anteriores quedan renombradas como «… respaldo fecha». Hace
 falta permiso de edición en la hoja y haber actualizado `Panel.gs` (paso 3) con la versión nueva.
 
@@ -201,7 +220,7 @@ formularioinnovatea/
 ├── main.js                 Controlador: el único archivo que enlaza WordPress
 ├── modulos/
 │   ├── catalogos.js        Municipios, EPS, grados, directorio institucional
-│   ├── preguntas.js        Preguntas: rectores 1–28, docentes 1–22, ficha F1–F25
+│   ├── preguntas.js        Preguntas: docentes de apoyo 1–18, docentes 1–18, ficha F1–F21
 │   ├── reglas.js           Coherencia entre respuestas (límites y opciones)
 │   ├── ui.js               Módulo 1 · renderizado e interacción
 │   ├── recolector.js       Módulo 2 · lectura del DOM al enviar
@@ -237,8 +256,8 @@ se le avisa en pantalla para que no la diligencie dos veces.
 a la hoja: el transformador descarta las respuestas de preguntas no visibles.
 
 **Coherencia entre respuestas.** Las reglas están en `modulos/reglas.js` y no son avisos: una
-respuesta imposible (más estudiantes con autismo que matriculados, más niñas que estudiantes con
-autismo, marcar «Ninguna» después de reportar casos…) muestra
+respuesta imposible (más estudiantes con TEA que matriculados, más niñas que estudiantes con
+TEA, marcar «Ninguna» después de reportar casos…) muestra
 el motivo en rojo y el formulario no avanza hasta corregirla. Las opciones que ya no aplican se
 deshabilitan, las que se deducen de respuestas anteriores se marcan solas, y `transformador.js`
 vuelve a revisar todo antes de enviar. Las cantidades pequeñas se responden con botones del 0 al
@@ -246,8 +265,10 @@ vuelve a revisar todo antes de enviar. Las cantidades pequeñas se responden con
 anteriores. Una pregunta que queda resuelta por respuestas anteriores (una sola opción posible) se
 responde sola, se salta y aparece en el resumen como «automática».
 
-**Fichas de caracterización.** Solo para estudiantes con autismo: se crean solas, una por cada
-estudiante que el docente reportó, y van al final de la encuesta. Cada ficha empieza con una
+**Fichas de caracterización.** Solo para estudiantes con trastorno del espectro autista (TEA),
+en los dos formularios: se crean solas, una por cada estudiante reportado (docentes de apoyo:
+preguntas 6.1 + 6.2; docentes: pregunta 5.1), y van al final de la encuesta. En la ficha de un
+docente de apoyo, la edad y el grado solo pueden ser los marcados en las preguntas 6.5 y 6.6. Cada ficha empieza con una
 pantalla «Estudiante N de M» que muestra el estado de todas y permite volver a cualquiera. Si el
 docente cambia el número de estudiantes, las fichas que sobran se ocultan pero sus respuestas se
 conservan.

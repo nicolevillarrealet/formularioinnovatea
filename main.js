@@ -2,7 +2,7 @@
    desde WordPress:
 
      <script type="module"
-       src="https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@v1.4.2/main.js"></script>
+       src="https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@v1.5.0/main.js"></script>
 
    Su trabajo es coordinar los módulos, no contener lógica propia:
      ui.js           dibuja y avisa cuando el usuario actúa
@@ -110,8 +110,11 @@ async function alEnviar(rol) {
     // El servidor lo vuelve a poner a partir del pase; aquí es para que
     // las filas salgan completas también en la cola sin conexión.
     resultado.registro.correo_verificado = sesion.correo;
-    resultado.destinos = aFilas(resultado.registro);
   }
+
+  // Constancia de la autorización de tratamiento de datos.
+  resultado.registro.autorizacion = ui.autorizacion();
+  resultado.destinos = aFilas(resultado.registro);
 
   // 4. Enviar a la hoja de cálculo.
   ui.bloquearEnvio(true, "Enviando…");

@@ -4,7 +4,7 @@
    cuando el usuario actúa, emite un evento sobre el contenedor y main.js decide.
 
    Eventos emitidos:
-     innovatea:rol    detail = { rol }        se eligió rectores | docentes
+     innovatea:rol    detail = { rol }        se eligió rectores (docentes de apoyo) | docentes
      innovatea:enviar detail = { rol }        se pulsó "Enviar respuestas"
 
    ESTILO WIZARD: cada pregunta es una pantalla y solo se ve una a la vez.
@@ -13,10 +13,11 @@
    En las preguntas de una sola opción, tocar la respuesta ya avanza.
    Las preguntas condicionales que no aplican se saltan solas.
 
-   En docentes, las FICHAS DE CARACTERIZACIÓN van al final, después de
-   las preguntas sobre el docente, y las abre una pantalla que explica que
-   esa parte es obligatoria. Son solo para estudiantes con autismo y se
-   crean solas: tantas como estudiantes con autismo reportó el docente.
+   En los dos formularios, las FICHAS DE CARACTERIZACIÓN van al final y
+   las abre una pantalla que explica que esa parte es obligatoria. Son
+   solo para estudiantes con trastorno del espectro autista (TEA) y se
+   crean solas: tantas como estudiantes con TEA se reportaron
+   (docentes de apoyo: preguntas 6.1 + 6.2; docentes: pregunta 5.1).
    Cada ficha empieza con una pantalla "Estudiante N de M" que muestra el
    estado de todas las fichas y permite volver a cualquiera.
 
@@ -44,6 +45,9 @@ import {
   RECTORES, DOC_ID, DOC_GRUPO, DOC_ESTUDIANTE, DOC_CIERRE, INSTITUCIONES,
 } from "./preguntas.js";
 import { conChips, limites, maxSeleccion, opcionesDe, errorDe, numFichas, preguntaFichas } from "./reglas.js";
+import { ALIAS, NOMBRE_ENCUESTA, preguntasDe } from "./preguntas.js";
+
+const POLITICA_DATOS = "https://narino.gov.co/wp-content/uploads/2026/02/POLITICA-DE-TRATAMIENTO-DE-DATOS-PERSONALES-GOBERNACION-DE-NARINO-V02-1.pdf";
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -52,7 +56,8 @@ const mayus = (s) => s.toLocaleUpperCase("es-CO");
 
 let raiz = null;          // contenedor #innovatea-app
 let ajustes = {};         // config recibida de main.js
-let rolActual = null;     // "rectores" | "docentes"
+let rolActual = null;     // "rectores" (docentes de apoyo) | "docentes"
+let fechaAutorizacion = ""; // cuándo marcó la autorización de datos
 let A = {};               // respuestas generales
 let S = [];               // fichas de estudiante (docentes)
 let registro = [];        // [{ el, q, store, ambito, indice }]
@@ -100,20 +105,20 @@ function plantilla() {
     <h2 class="titulo">Elija la encuesta que le corresponde</h2>
     <label class="consent" for="acepto">
       <input type="checkbox" id="acepto">
-      <span>Autorizo el tratamiento de mis datos personales (nombre y contacto) y de la información que registre en esta encuesta, para la caracterización y el seguimiento del proyecto INNOVATEA, en los términos de la Ley 1581 de 2012. Mis datos solo serán conocidos por la coordinación del proyecto y no aparecerán en los informes. No registraré nombres ni documentos de estudiantes.</span>
+      <span>Autorizo el tratamiento de mis datos personales (nombre y contacto) y de la información que registre en esta encuesta, para la caracterización y el seguimiento del proyecto INNOVATEA, en los términos de la Ley 1581 de 2012 y de la <a href="${POLITICA_DATOS}" target="_blank" rel="noopener">Política de tratamiento de datos personales de la Gobernación de Nariño</a>. Mis datos solo serán conocidos por la coordinación del proyecto y no aparecerán en los informes. No registraré nombres ni documentos de estudiantes.</span>
     </label>
     <div class="acceso" id="acceso" hidden></div>
     <div class="roles">
       <button class="role" type="button" data-form="rectores">
-        <small>Formulario 1 · 28 preguntas · 10 min aprox.</small>
-        <h3>Rectores y directivos</h3>
-        <span>Caracterización institucional y poblacional de la sede educativa.</span>
+        <small>Formulario 1 · 18 preguntas + una ficha por estudiante con trastorno del espectro autista (TEA)</small>
+        <h3>Docentes de apoyo pedagógico</h3>
+        <span>Caracterización institucional y poblacional de la sede educativa, y de cada estudiante con TEA reportado.</span>
         <span class="go">Comenzar →</span>
       </button>
       <button class="role" type="button" data-form="docentes">
-        <small>Formulario 2 · 22 preguntas + una ficha por estudiante con autismo</small>
+        <small>Formulario 2 · 18 preguntas + una ficha por estudiante con trastorno del espectro autista (TEA)</small>
         <h3>Docentes de básica primaria</h3>
-        <span>Su grupo, su práctica pedagógica y formación, y la caracterización de cada estudiante con autismo.</span>
+        <span>Su grupo, su práctica pedagógica y formación, y la caracterización de cada estudiante con TEA de su grupo.</span>
         <span class="go">Comenzar →</span>
       </button>
     </div>
@@ -152,7 +157,10 @@ function cablearInicio() {
       $("#homeMsg").innerHTML = "";
       emitir("innovatea:rol", { rol: b.dataset.form });
     }));
-  $("#acepto").addEventListener("change", () => { $("#homeMsg").innerHTML = ""; });
+  $("#acepto").addEventListener("change", (e) => {
+    $("#homeMsg").innerHTML = "";
+    fechaAutorizacion = e.target.checked ? new Date().toISOString() : "";
+  });
   $("#back").addEventListener("click", () => mostrar("home"));
   $("#again").addEventListener("click", () => mostrar("home"));
 }
@@ -393,7 +401,9 @@ function selectorNumero(q, store, id, alElegir) {
 }
 
 /** Contexto que reciben las reglas para una entrada del registro. */
-const ctx = (r) => ({ A, S, i: r.indice });
+const ctx = (r) => ({ A, S, i: r.indice, rol: rolActual });
+/** Fichas que corresponden según lo reportado en este formulario. */
+const nF = () => numFichas(A, rolActual);
 
 /**
  * Aplica las reglas de opciones: desmarca lo que ya no aplica, marca lo
@@ -405,7 +415,7 @@ function aplicarReglas() {
   registro.forEach((r) => {
     const { q, store: s } = r;
     const c = ctx(r);
-    const activa = visible(q, s) && (r.ambito !== "estudiante" || r.indice < numFichas(A));
+    const activa = visible(q, s) && (r.ambito !== "estudiante" || r.indice < nF());
     r.fija = false;
     if (r.el._refrescar) r.fija = !!r.el._refrescar(c, activa);
     if (q.t !== "radio" && q.t !== "multi") return;
@@ -478,10 +488,10 @@ function campo(q, store, prefijo, ambito, indice) {
   const id = prefijo + q.id;
   const enLinea = ["select", "num", "inst", "numna", "text", "largo", "tel"].includes(q.t);
   const fs = document.createElement(enLinea ? "div" : "fieldset");
-  fs.className = "q";
+  fs.className = q.dentro ? "q q-dentro" : "q";
   fs.id = "q-" + id;
 
-  const etiqueta = `<span class="n">${q.n}</span><span>${esc(q.l)}` +
+  const etiqueta = (q.dentro ? "" : `<span class="n">${q.n}</span>`) + `<span>${esc(q.l)}` +
     `${q.opt ? ' <span class="multi-note">(opcional)</span>' : ""}` +
     `${q.t === "multi" ? ' <span class="multi-note">(puede marcar varias)</span>' : ""}` +
     `${q.ayuda ? `<span class="q-ayuda">${esc(q.ayuda)}</span>` : ""}</span>`;
@@ -520,7 +530,7 @@ function campo(q, store, prefijo, ambito, indice) {
         cambio();
         // Una sola opción y elegida con el dedo o el ratón: pasa sola.
         if (q.t === "radio" && Date.now() - ultimoToque < 1000) {
-          setTimeout(() => { if (actual && actual.contains(fs)) siguiente(); }, 320);
+          setTimeout(() => { if (actual && actual.contains(fs)) avanzarSolo(); }, 320);
         }
       });
       const sp = document.createElement("span");
@@ -532,7 +542,7 @@ function campo(q, store, prefijo, ambito, indice) {
   } else if (q.t === "select" && q.buscar) {
     // Listas largas (los 64 municipios): buscador en lugar de desplegable.
     ctl = buscador(q, store, id, () => {
-      setTimeout(() => { if (actual && actual.contains(fs)) siguiente(); }, 320);
+      setTimeout(() => { if (actual && actual.contains(fs)) avanzarSolo(); }, 320);
     });
 
   } else if (q.t === "select") {
@@ -625,7 +635,7 @@ function campo(q, store, prefijo, ambito, indice) {
   } else if (conChips(q)) { // num / numna con números pequeños
     ctl = selectorNumero(q, store, id, () => {
       if (Date.now() - ultimoToque < 1000) {
-        setTimeout(() => { if (actual && actual.contains(fs)) siguiente(); }, 320);
+        setTimeout(() => { if (actual && actual.contains(fs)) avanzarSolo(); }, 320);
       }
     });
     fs._refrescar = ctl._refrescar;
@@ -701,25 +711,38 @@ function pantalla(contenido, aplica) {
 /** Una pantalla por pregunta de la sección, con el nombre de la sección
     arriba y la ayuda de la sección en la primera pregunta. */
 function pantallasDeSeccion(sec, store, prefijo, ambito, indice, antetitulo, condicion) {
-  return sec.qs.map((q, k) => {
-    const caja = document.createElement("div");
-    const titulo = (antetitulo ? antetitulo + " · " : "") + sec.title;
-    caja.innerHTML = (ambito === "estudiante" ? bannerFicha(indice) : "") +
-      `<p class="pantalla-sec">${esc(sec.title)}</p>` +
-      (k === 0 && sec.hint ? `<p class="hint pantalla-hint">${esc(sec.hint)}</p>` : "");
-    caja.append(campo(q, store, prefijo, ambito, indice));
-    const r = registro[registro.length - 1];
-    r.grupo = titulo; // para el resumen final
-    // Se salta si no aplica o si quedó resuelta por respuestas anteriores.
-    const p = pantalla(caja, () => (!condicion || condicion()) && visible(q, store) && !r.fija);
-    if (ambito === "estudiante") p.dataset.ficha = indice;
-    return p;
+  const pantallas = [];
+  sec.qs.forEach((q, k) => {
+    // Campo que va en la misma pantalla de otra pregunta (texto de "Otra").
+    if (q.dentro && pantallas.length) {
+      const anterior = pantallas[pantallas.length - 1];
+      anterior.firstElementChild.append(campo(q, store, prefijo, ambito, indice));
+      registro[registro.length - 1].grupo = (antetitulo ? antetitulo + " · " : "") + sec.title;
+      return;
+    }
+    pantallas.push(pantallaDePregunta(sec, q, k, store, prefijo, ambito, indice, antetitulo, condicion));
   });
+  return pantallas;
+}
+
+function pantallaDePregunta(sec, q, k, store, prefijo, ambito, indice, antetitulo, condicion) {
+  const caja = document.createElement("div");
+  const titulo = (antetitulo ? antetitulo + " · " : "") + sec.title;
+  caja.innerHTML = (ambito === "estudiante" ? bannerFicha(indice) : "") +
+    `<p class="pantalla-sec">${esc(sec.title)}</p>` +
+    (k === 0 && sec.hint ? `<p class="hint pantalla-hint">${esc(sec.hint)}</p>` : "");
+  caja.append(campo(q, store, prefijo, ambito, indice));
+  const r = registro[registro.length - 1];
+  r.grupo = titulo; // para el resumen final
+  // Se salta si no aplica o si quedó resuelta por respuestas anteriores.
+  const p = pantalla(caja, () => (!condicion || condicion()) && visible(q, store) && !r.fija);
+  if (ambito === "estudiante") p.dataset.ficha = indice;
+  return p;
 }
 
 /** Franja que identifica a qué estudiante pertenece la pantalla. */
 function bannerFicha(i) {
-  const total = numFichas(A);
+  const total = nF();
   return `<div class="ficha-banner"><span class="ficha-chip">Ficha de caracterización</span>
     <strong>Estudiante ${i + 1}</strong><span class="ficha-de">de ${total}</span></div>`;
 }
@@ -786,7 +809,7 @@ function pendientes() {
   const orden = todas();
   const pos = (r) => orden.findIndex((p) => p.contains(r.el));
   return registro
-    .filter((r) => visible(r.q, r.store) && (r.ambito !== "estudiante" || r.indice < numFichas(A))
+    .filter((r) => visible(r.q, r.store) && (r.ambito !== "estudiante" || r.indice < nF())
       && ((obligatoria(r) && !respondida(r.q, r.store)) || errorEn(r)))
     .sort((a, b) => pos(a) - pos(b));
 }
@@ -807,8 +830,8 @@ function actualizarNav() {
 
   // El título de arriba dice siempre en qué ficha se está.
   const fi = actual.dataset.ficha;
-  $("#formTitle").textContent = rolActual === "rectores" ? "Rectores"
-    : fi !== undefined ? `Ficha · Estudiante ${Number(fi) + 1} de ${numFichas(A)}` : "Docentes";
+  $("#formTitle").textContent = fi !== undefined ? `Ficha · Estudiante ${Number(fi) + 1} de ${nF()}`
+    : rolActual === "rectores" ? "Docentes de apoyo" : "Docentes";
 
   const intro = actual.querySelector("[data-intro-texto]");
   if (intro) intro.textContent = textoIntroFichas();
@@ -906,6 +929,20 @@ function pantallaLista() {
   return false;
 }
 
+/** Avance automático (al tocar una opción o un número): si en la misma
+    pantalla quedó un campo por llenar —el texto de "Otra"—, se lleva el
+    cursor ahí en lugar de avanzar. */
+function avanzarSolo() {
+  const pendiente = registro.find((r) => actual.contains(r.el) && r.q.dentro && visible(r.q, r.store)
+    && obligatoria(r) && !respondida(r.q, r.store));
+  if (pendiente) {
+    const inp = pendiente.el.querySelector("input, textarea");
+    if (inp) inp.focus();
+    return;
+  }
+  siguiente();
+}
+
 function siguiente() {
   if (!pantallaLista()) return;
   cambiarA(vecino(1), true);
@@ -932,14 +969,15 @@ function llevarA(el) {
    ===================================================================== */
 
 function cambio(qid) {
-  // Las fichas se crean solas: una por cada estudiante con autismo.
-  if (rolActual === "docentes" && numFichas(A) !== fichasPintadas) { renderizarFichas(); return; }
+  // Las fichas se crean solas: una por cada estudiante con TEA.
+  if (nF() !== fichasPintadas) { renderizarFichas(); return; }
 
   aplicarReglas();
-  // Una regla pudo fijar el número de estudiantes con autismo (p. ej. si
+  // Una regla pudo fijar el número de estudiantes con TEA (p. ej. si
   // tiene 1 estudiante a cargo): se ajustan las fichas antes de seguir.
-  if (rolActual === "docentes" && numFichas(A) !== fichasPintadas) { renderizarFichas(); return; }
+  if (nF() !== fichasPintadas) { renderizarFichas(); return; }
   registro.forEach((r) => {
+    if (r.q.dentro) r.el.hidden = !visible(r.q, r.store);
     if (respondida(r.q, r.store)) r.el.classList.remove("missing");
     if (qid && r.q.dep === qid && r.el._refill) r.el._refill();
   });
@@ -975,6 +1013,9 @@ export function renderizarFormulario(rol, ops = {}) {
   // contacto: ahora el campo es solo para el celular.
   const contacto = rol === "rectores" ? "rc" : "dc";
   if (A[contacto] && /\D/.test(A[contacto])) delete A[contacto];
+  // Opciones renombradas o quitadas en versiones anteriores.
+  sanearBorrador(A, rol === "rectores" ? RECTORES.sections : [DOC_ID, DOC_GRUPO, ...DOC_CIERRE]);
+  S.forEach((st) => sanearBorrador(st, DOC_ESTUDIANTE));
 
   const ind = document.createElement("div");
   ind.className = "pasos-ind";
@@ -989,22 +1030,23 @@ export function renderizarFormulario(rol, ops = {}) {
   const agregar = (lista) => lista.forEach((p) => capas.append(p));
 
   if (rol === "rectores") {
-    $("#formTitle").textContent = "Rectores";
-    $("#formIntro").innerHTML = `<h2 class="titulo">${esc(RECTORES.title)}</h2><p class="hint">Responda con la información institucional disponible. Las cantidades se escriben en números enteros.</p>`;
+    $("#formTitle").textContent = "Docentes de apoyo";
+    $("#formIntro").innerHTML = `<h2 class="titulo">${esc(RECTORES.title)}</h2><p class="hint">Responda con la información institucional disponible. Las cantidades se escriben en números enteros. Al final caracterice a cada estudiante con trastorno del espectro autista (TEA) reportado, sin nombres ni documentos.</p>`;
     RECTORES.sections.forEach((s) => agregar(pantallasDeSeccion(s, A, "", "general", null)));
   } else {
     $("#formTitle").textContent = "Docentes";
-    $("#formIntro").innerHTML = `<h2 class="titulo">Encuesta para docentes</h2><p class="hint">Primero describa su grupo y responda las preguntas sobre su práctica pedagógica y su formación. Al final caracterice a cada estudiante con autismo que reportó, sin nombres ni documentos.</p>`;
+    $("#formIntro").innerHTML = `<h2 class="titulo">Encuesta para docentes</h2><p class="hint">Primero describa su grupo y responda las preguntas sobre su práctica pedagógica y su formación. Al final caracterice a cada estudiante con trastorno del espectro autista (TEA) que reportó, sin nombres ni documentos.</p>`;
     // Orden: el docente responde primero lo que es sobre él y su grupo, y
-    // al final caracteriza a cada estudiante con autismo (fichas).
+    // al final caracteriza a cada estudiante con TEA (fichas).
     agregar(pantallasDeSeccion(DOC_ID, A, "", "general", null));
     agregar(pantallasDeSeccion(DOC_GRUPO, A, "", "general", null));
     DOC_CIERRE.forEach((s) => agregar(pantallasDeSeccion(s, A, "", "general", null)));
-    capas.append(pantallaIntroFichas());
-    const zona = document.createElement("div");
-    zona.id = "zonaFichas";
-    capas.append(zona);
   }
+  // Las fichas van al final en los dos formularios.
+  capas.append(pantallaIntroFichas());
+  const zona = document.createElement("div");
+  zona.id = "zonaFichas";
+  capas.append(zona);
 
   const fin = document.createElement("div");
   fin.innerHTML = `<p class="pantalla-sec">Último paso</p><h2 tabindex="-1">Revise y envíe</h2>
@@ -1040,7 +1082,7 @@ export function renderizarFormulario(rol, ops = {}) {
     emitir("innovatea:enviar", { rol });
   };
 
-  if (rol === "docentes") renderizarFichas(); else cambio();
+  renderizarFichas();
 
   // Con un borrador a medias, se retoma en la primera pregunta sin
   // responder; si ya estaba todo y había llegado al resumen, en el resumen.
@@ -1055,13 +1097,13 @@ export function renderizarFormulario(rol, ops = {}) {
 /* ---------- Fichas de caracterización ---------- */
 
 /** Pantalla que abre la última parte: deja claro que viene la
-    caracterización de cada estudiante con autismo y que es obligatoria. */
+    caracterización de cada estudiante con TEA y que es obligatoria. */
 function pantallaIntroFichas() {
   const caja = document.createElement("div");
   caja.className = "intro-fichas";
   caja.innerHTML = `
     <p class="pantalla-sec">Última parte</p>
-    <h2 tabindex="-1">Fichas de caracterización de sus estudiantes con autismo</h2>
+    <h2 tabindex="-1">Fichas de caracterización de los estudiantes con trastorno del espectro autista (TEA)</h2>
     <p class="obligatorio"><strong>Esta parte es OBLIGATORIA.</strong> Sin ella no se puede enviar la encuesta.</p>
     <p data-intro-texto></p>
     <ul class="intro-lista">
@@ -1074,10 +1116,11 @@ function pantallaIntroFichas() {
 }
 
 function textoIntroFichas() {
-  const n = numFichas(A);
+  const n = nF();
+  const donde = rolActual === "rectores" ? `En las preguntas ${preguntaFichas(rolActual)}` : `En la pregunta ${preguntaFichas(rolActual)}`;
   return n === 1
-    ? `En la pregunta ${preguntaFichas()} reportó 1 estudiante con autismo: diligencie su ficha.`
-    : `En la pregunta ${preguntaFichas()} reportó ${n} estudiantes con autismo. Se crearon ${n} fichas, una por cada uno: Estudiante 1 a Estudiante ${n}.`;
+    ? `${donde} reportó 1 estudiante con trastorno del espectro autista (TEA): diligencie su ficha.`
+    : `${donde} reportó ${n} estudiantes con trastorno del espectro autista (TEA). Se crearon ${n} fichas, una por cada uno: Estudiante 1 a Estudiante ${n}.`;
 }
 
 /** Estado de una ficha: completa, empezada o sin empezar. */
@@ -1100,7 +1143,7 @@ function pantallaInicioFicha(i) {
     <h2 tabindex="-1">Ficha del Estudiante ${i + 1}</h2>
     <p class="hint">Las preguntas que siguen son solo sobre el <strong>Estudiante ${i + 1}</strong>. Piense en un solo niño o niña durante toda la ficha.</p>
     <ol class="lista-fichas" aria-label="Estado de las fichas"></ol>`;
-  const p = pantalla(caja, () => requiereFichas() && i < numFichas(A));
+  const p = pantalla(caja, () => requiereFichas() && i < nF());
   p.dataset.ficha = i;
   return p;
 }
@@ -1108,7 +1151,7 @@ function pantallaInicioFicha(i) {
 function pintarEstadoFichas(caja) {
   const actualI = Number(caja.dataset.ficha);
   const lista = caja.querySelector(".lista-fichas");
-  const n = numFichas(A);
+  const n = nF();
   let html = "";
   for (let i = 0; i < n; i++) {
     const e = estadoFicha(i);
@@ -1126,10 +1169,10 @@ function pintarEstadoFichas(caja) {
 }
 
 /** Dibuja las fichas que corresponden según el número de estudiantes con
-    autismo. Los datos de S se conservan siempre: si sobran fichas solo se
+    TEA. Los datos de S se conservan siempre: si sobran fichas solo se
     dejan de dibujar, y si faltan se agregan vacías. */
 function renderizarFichas() {
-  const n = numFichas(A);
+  const n = nF();
   while (S.length < n) S.push({});
   fichasPintadas = n;
 
@@ -1145,8 +1188,27 @@ function renderizarFichas() {
   cambio();
 }
 
-/** ¿El docente reportó estudiantes con autismo? Entonces hay fichas. */
-export const requiereFichas = () => rolActual === "docentes" && numFichas(A) > 0;
+/** ¿Se reportaron estudiantes con TEA? Entonces hay fichas. */
+export const requiereFichas = () => !!rolActual && nF() > 0;
+
+/** Borradores guardados con una versión anterior: pasa las opciones
+    renombradas a su nombre nuevo y quita las que ya no existen. */
+function sanearBorrador(store, secciones) {
+  const ids = new Set();
+  preguntasDe(secciones).forEach((q) => {
+    ids.add(q.id);
+    if (!(q.id in store) || !q.o) return;
+    const valido = (v) => q.o.includes(v);
+    if (q.t === "multi") {
+      const v = (Array.isArray(store[q.id]) ? store[q.id] : [store[q.id]]).map((x) => ALIAS[x] || x).filter(valido);
+      if (v.length) store[q.id] = v; else delete store[q.id];
+    } else {
+      const v = ALIAS[store[q.id]] || store[q.id];
+      if (valido(v)) store[q.id] = v; else delete store[q.id];
+    }
+  });
+  Object.keys(store).forEach((k) => { if (!ids.has(k)) delete store[k]; });
+}
 
 /* =====================================================================
    Acceso para los demás módulos
@@ -1154,7 +1216,7 @@ export const requiereFichas = () => rolActual === "docentes" && numFichas(A) > 0
 
 export const obtenerRegistro = () => registro;
 export const rol = () => rolActual;
-export const numeroDeFichas = () => numFichas(A);
+export const numeroDeFichas = () => nF();
 
 /** Recibe descriptores { id, ambito, indice } de transformador.js, resalta
     las preguntas correspondientes y lleva a la primera. */
@@ -1177,6 +1239,13 @@ export const contenedorAcceso = () => $("#acceso");
 /** ¿Marcó la autorización de tratamiento de datos? */
 export const autorizo = () => $("#acepto").checked;
 
+/** Constancia de la autorización de tratamiento de datos para el envío. */
+export const autorizacion = () => ({
+  acepto: $("#acepto").checked,
+  fecha: fechaAutorizacion || new Date().toISOString(),
+  politica: POLITICA_DATOS,
+});
+
 /** Cada correo responde una sola encuesta: si ya envió una (de rector o
     de docente), se bloquean las dos tarjetas y se dice cuál envió. */
 export function marcarUsadas(tipos) {
@@ -1191,7 +1260,7 @@ export function marcarUsadas(tipos) {
       : esta ? "Ya enviada con este correo" : "No disponible: este correo ya respondió la otra encuesta";
   });
   avisoInicio(bloqueado
-    ? `Este correo ya respondió la encuesta de <strong>${enviadas[0]}</strong>. Cada correo puede responder una sola encuesta, de rector o de docente. Si necesita responder la otra, use un correo distinto.`
+    ? `Este correo ya respondió la encuesta de <strong>${NOMBRE_ENCUESTA[enviadas[0]] || enviadas[0]}</strong>. Cada correo puede responder una sola encuesta, de docente de apoyo o de docente. Si necesita responder la otra, use un correo distinto.`
     : "", "info");
 }
 

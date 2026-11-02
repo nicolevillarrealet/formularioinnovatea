@@ -4,7 +4,9 @@
    1) `registro`: el envío como objeto anidado, que es lo que se guarda y lo
       que lee el panel.
    2) `destinos`: el mismo envío ya aplanado en filas listas para la hoja de
-      cálculo, una entrada por pestaña (Rectores, Docentes, Estudiantes).
+      cálculo, una entrada por pestaña (Docentes de apoyo, Docentes,
+      Estudiantes). Los dos formularios generan fichas en Estudiantes; la
+      columna `encuesta` dice de cuál vienen.
 
    Las tres pestañas comparten `id_envio`, de modo que cada ficha de
    estudiante se puede volver a unir con la encuesta del docente que la
@@ -18,15 +20,20 @@
      "13. ¿Pregunta? [Opción]" y valor 1 si la marcó o 0 si no. Así se
      cuenta con SUMA o se filtra directamente, sin separar textos.
    - Celda vacía: la pregunta no aplicaba (se ocultó por una respuesta
-     anterior). Es distinto de 0, que significa "aplicaba y no la marcó". */
+     anterior). Es distinto de 0, que significa "aplicaba y no la marcó".
+   - Las opciones renombradas (p. ej. "Autismo" → "Trastorno del espectro
+     autista (TEA)") se leen con el nombre nuevo, así que la hoja
+     reorganizada queda uniforme aunque haya envíos de versiones viejas. */
 
 import {
   RECTORES, DOC_ID, DOC_GRUPO, DOC_ESTUDIANTE, DOC_CIERRE,
-  preguntasDe, etiqueta,
+  preguntasDe, etiqueta, ALIAS,
 } from "./preguntas.js";
 import { errorDe, numFichas } from "./reglas.js";
 
-export const HOJAS = { RECTORES: "Rectores", DOCENTES: "Docentes", ESTUDIANTES: "Estudiantes" };
+export const HOJAS = { RECTORES: "Docentes de apoyo", DOCENTES: "Docentes", ESTUDIANTES: "Estudiantes" };
+const ENCUESTA = { rector: "Docente de apoyo", docente: "Docente" };
+const nuevo = (v) => ALIAS[v] || v;
 
 /* Preguntas que ya viajan como metadatos y no se repiten como columna. */
 const META = new Set(["rn", "rc", "dn", "dc"]);
@@ -98,8 +105,8 @@ export const etiquetaOpcion = (q, o) => `${etiqueta(q.id)} [${o}]`;
 /** Escribe en la fila `f` las columnas de una pregunta: una sola, o una
     por opción (1/0) si es de varias respuestas. */
 function ponerColumnas(f, q, valor) {
-  if (q.t !== "multi") { f[etiqueta(q.id)] = celda(valor); return; }
-  const marcadas = Array.isArray(valor) ? valor : null;
+  if (q.t !== "multi") { f[etiqueta(q.id)] = celda(nuevo(valor)); return; }
+  const marcadas = Array.isArray(valor) ? valor.map(nuevo) : null;
   q.o.forEach((o) => { f[etiquetaOpcion(q, o)] = marcadas ? (marcadas.includes(o) ? 1 : 0) : ""; });
 }
 
@@ -120,7 +127,7 @@ export function limpiarDatos(crudos, rol) {
   let faltantes = [];
 
   let errores = [];
-  const general = { A: g, S: fichas, i: null };
+  const general = { A: g, S: fichas, i: null, rol };
   if (rol === "rectores") {
     faltantes = faltantesDe(RECTORES.sections, g, "general", null);
     errores = incoherenciasDe(RECTORES.sections, g, "general", null, general);
@@ -130,13 +137,14 @@ export function limpiarDatos(crudos, rol) {
     errores = incoherenciasDe(secciones, g, "general", null, general);
   }
 
-  // Fichas: solo de estudiantes con autismo, exactamente una por cada uno.
-  const esperadas = rol === "docentes" ? numFichas(g) : 0;
+  // Fichas: solo de estudiantes con TEA, exactamente una por cada uno,
+  // en los dos formularios.
+  const esperadas = numFichas(g, rol);
   const necesitaFichas = esperadas > 0;
   if (necesitaFichas) {
     fichas.slice(0, esperadas).forEach((st, i) => {
       faltantes = faltantes.concat(faltantesDe(DOC_ESTUDIANTE, st, "estudiante", i));
-      errores = errores.concat(incoherenciasDe(DOC_ESTUDIANTE, st, "estudiante", i, { A: g, S: fichas, i }));
+      errores = errores.concat(incoherenciasDe(DOC_ESTUDIANTE, st, "estudiante", i, { A: g, S: fichas, i, rol }));
     });
   }
 
@@ -146,7 +154,7 @@ export function limpiarDatos(crudos, rol) {
   } else if (errores.length) {
     mensaje = `Hay ${errores.length} respuesta(s) que no cuadran con otras. Corríjala(s) para poder enviar.`;
   } else if (necesitaFichas && fichas.length < esperadas) {
-    mensaje = `Reportó ${esperadas} estudiante(s) con autismo y hay ${fichas.length} ficha(s). Complete las que faltan.`;
+    mensaje = `Reportó ${esperadas} estudiante(s) con trastorno del espectro autista (TEA) y hay ${fichas.length} ficha(s). Complete las que faltan.`;
   }
   faltantes = faltantes.concat(errores);
 
@@ -161,7 +169,7 @@ export function limpiarDatos(crudos, rol) {
         nombre: g.rn || "", contacto: g.rc || "",
         municipio: g.r1 || "", institucion: g.r2 || "",
         respuestas: soloVisibles(RECTORES.sections, g),
-        estudiantes: [],
+        estudiantes: fichas.slice(0, esperadas).map((st) => soloVisibles(DOC_ESTUDIANTE, st)),
       }
     : {
         id, enviado, tipo: "docente",
@@ -183,24 +191,34 @@ export function aFilas(registro) {
   const r = registro;
   const comun = { id_envio: r.id, enviado: r.enviado, municipio: r.municipio, institucion: r.institucion,
     correo_verificado: r.correo_verificado || "" };
+  // Constancia de la autorización de tratamiento de datos (Ley 1581 de 2012).
+  const autorizacion = {
+    autoriza_tratamiento_datos: r.autorizacion?.acepto ? "SÍ" : "",
+    fecha_autorizacion: r.autorizacion?.fecha || "",
+  };
+  const estudiantes = r.estudiantes || [];
 
+  let principal;
   if (r.tipo === "rector") {
-    const f = { ...comun, nombre: r.nombre, contacto: r.contacto, cargo: r.respuestas.r3 || "" };
+    const f = { ...comun, ...autorizacion, nombre: r.nombre, contacto: r.contacto, cargo: r.respuestas.r3 || "",
+      fichas_registradas: estudiantes.length };
     columnas(RECTORES.sections).forEach((q) => ponerColumnas(f, q, r.respuestas[q.id]));
-    return [{ hoja: HOJAS.RECTORES, encabezados: Object.keys(f), filas: [f] }];
+    principal = { hoja: HOJAS.RECTORES, encabezados: Object.keys(f), filas: [f] };
+  } else {
+    const fd = { ...comun, ...autorizacion, nombre: r.nombre, contacto: r.contacto, fichas_registradas: estudiantes.length };
+    columnas([DOC_ID, DOC_GRUPO, ...DOC_CIERRE]).forEach((q) => ponerColumnas(fd, q, r.respuestas[q.id]));
+    principal = { hoja: HOJAS.DOCENTES, encabezados: Object.keys(fd), filas: [fd] };
   }
 
-  const fd = { ...comun, nombre: r.nombre, contacto: r.contacto, fichas_registradas: r.estudiantes.length };
-  columnas([DOC_ID, DOC_GRUPO, ...DOC_CIERRE]).forEach((q) => ponerColumnas(fd, q, r.respuestas[q.id]));
-
   const pregEst = columnas(DOC_ESTUDIANTE);
-  const filasEst = r.estudiantes.map((st, i) => {
-    const fe = { ...comun, ficha: i + 1, docente: r.nombre, grado_a_cargo: r.respuestas.d3 || "" };
+  const filasEst = estudiantes.map((st, i) => {
+    const fe = { ...comun, encuesta: ENCUESTA[r.tipo] || r.tipo, ficha: i + 1, docente: r.nombre,
+      grado_a_cargo: r.tipo === "docente" ? (r.respuestas.d3 || "") : "" };
     pregEst.forEach((q) => ponerColumnas(fe, q, st[q.id]));
     return fe;
   });
 
-  const destinos = [{ hoja: HOJAS.DOCENTES, encabezados: Object.keys(fd), filas: [fd] }];
+  const destinos = [principal];
   if (filasEst.length) {
     destinos.push({ hoja: HOJAS.ESTUDIANTES, encabezados: Object.keys(filasEst[0]), filas: filasEst });
   }

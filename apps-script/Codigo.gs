@@ -27,8 +27,15 @@
  *  Quien responde escribe su correo, recibe un código de 6 dígitos y lo
  *  escribe en el formulario. Este script comprueba el código y entrega un
  *  "pase" firmado con el correo, que acompaña al envío. Cada correo puede
- *  enviar UNA SOLA encuesta, de rector o de docente: quien respondió una
- *  no puede responder la otra. La pestaña _correos lleva la cuenta.
+ *  enviar UNA SOLA encuesta, de docente de apoyo o de docente: quien
+ *  respondió una no puede responder la otra. La pestaña _correos lleva la
+ *  cuenta.
+ *
+ * AUTORIZACIÓN DE DATOS
+ *  Todo envío con correo verificado debe traer la autorización de
+ *  tratamiento de datos (Ley 1581 de 2012); si no, se rechaza. La
+ *  constancia queda en las columnas autoriza_tratamiento_datos y
+ *  fecha_autorizacion, y en la pestaña _envios.
  *
  *  5. Para que la verificación sea OBLIGATORIA: Configuración del proyecto
  *     (engranaje) → Propiedades de la secuencia de comandos → Agregar
@@ -55,7 +62,9 @@
  */
 
 /* ---- Límites. Nada de lo que llegue de fuera puede pasarse de aquí. ---- */
-var HOJAS_PERMITIDAS = ['Rectores', 'Docentes', 'Estudiantes'];
+// 'Rectores' queda solo para envíos de la versión anterior de la página.
+var HOJAS_PERMITIDAS = ['Docentes de apoyo', 'Docentes', 'Estudiantes', 'Rectores'];
+var NOMBRE_ENCUESTA = { rector: 'docente de apoyo', docente: 'docente' };
 var HOJA_ENVIOS = '_envios';
 var HOJA_CORREOS = '_correos';
 var TIPOS_PERMITIDOS = ['rector', 'docente'];
@@ -93,6 +102,11 @@ function doPost(e) {
     if (!registroValido(datos.registro)) return responder({ ok: false, error: 'Registro no válido' });
     var v = verificar(datos.verificacion || {});
     if (!v.ok) return responder({ ok: false, error: v.error });
+    // La página actual siempre envía la autorización; sin ella no se guarda.
+    var aut = datos.registro.autorizacion;
+    if (v.como === 'correo' && !(aut && aut.acepto === true)) {
+      return responder({ ok: false, error: 'Falta la autorización de tratamiento de datos. Vuelva al inicio, márquela y envíe de nuevo; sus respuestas no se pierden.' });
+    }
 
     return responder(registrar(datos, v));
   } catch (err) {
@@ -321,8 +335,8 @@ function registrar(datos, v) {
     // Una sola encuesta por correo verificado, sea de rector o de docente.
     var previas = v.correo ? encuestasDe(v.correo) : [];
     if (previas.length) {
-      return { ok: false, error: 'El correo ' + v.correo + ' ya envió la encuesta de ' + previas[0] +
-        '. Cada correo puede responder una sola encuesta, de rector o de docente.' };
+      return { ok: false, error: 'El correo ' + v.correo + ' ya envió la encuesta de ' + (NOMBRE_ENCUESTA[previas[0]] || previas[0]) +
+        '. Cada correo puede responder una sola encuesta, de docente de apoyo o de docente.' };
     }
 
     // El correo lo pone el servidor a partir del pase: el que venga del
@@ -338,7 +352,7 @@ function registrar(datos, v) {
       escribirFilas(libro, destino.hoja, enc, destino.filas);
     });
 
-    var columnasEnvios = ['id_envio', 'enviado', 'tipo', 'json', 'verificacion', 'minutos_desde_verificacion'];
+    var columnasEnvios = ['id_envio', 'enviado', 'tipo', 'json', 'verificacion', 'minutos_desde_verificacion', 'autorizacion_datos'];
     var envios = hojaConEncabezados(libro, HOJA_ENVIOS, columnasEnvios);
     completarEncabezados(envios, columnasEnvios);
     envios.appendRow([
@@ -348,6 +362,7 @@ function registrar(datos, v) {
       JSON.stringify(r).slice(0, MAX_CUERPO),
       v.como,
       v.minutos,
+      r.autorizacion && r.autorizacion.acepto ? 'SÍ · ' + String(r.autorizacion.fecha || '').slice(0, 40) : '',
     ]);
 
     if (v.correo) {
@@ -402,4 +417,44 @@ function encabezadosActuales(hoja) {
   var ancho = hoja.getLastColumn();
   if (ancho === 0) return [];
   return hoja.getRange(1, 1, 1, ancho).getValues()[0].map(String);
+}
+
+/* ===================================================================
+   Mantenimiento (se ejecuta a mano desde el editor, nunca desde la web)
+   =================================================================== */
+
+/** Ejecútela una vez para autorizar el envío de correos. */
+function autorizarCorreos() {
+  Logger.log('Correos disponibles hoy: ' + MailApp.getRemainingDailyQuota());
+}
+
+/**
+ * Deja la hoja lista para empezar de cero con el formulario actual.
+ * No borra nada: cada pestaña de datos se renombra como respaldo
+ * ("respaldo 2026-11-01 Docentes") y se oculta. Las pestañas nuevas las
+ * crea el formulario solo, con los encabezados vigentes, en el primer
+ * envío. Al reiniciar _correos, los correos de prueba pueden volver a
+ * responder.
+ */
+function reiniciarHojas() {
+  var libro = SpreadsheetApp.getActiveSpreadsheet();
+  var sello = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH.mm');
+  var nombres = ['Rectores', 'Docentes de apoyo', 'Docentes', 'Estudiantes', HOJA_ENVIOS, HOJA_CORREOS];
+  var hechas = [];
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000); // que no entre un envío mientras se renombra
+  try {
+    nombres.forEach(function (n) {
+      var hoja = libro.getSheetByName(n);
+      if (!hoja) return;
+      hoja.setName('respaldo ' + sello + ' ' + n);
+      hoja.hideSheet();
+      hechas.push(n);
+    });
+  } finally {
+    lock.releaseLock();
+  }
+  Logger.log(hechas.length
+    ? 'Listo. Pasaron a respaldo (ocultas): ' + hechas.join(', ')
+    : 'No había pestañas de datos que reiniciar.');
 }

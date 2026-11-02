@@ -65,7 +65,7 @@ function listarRegistros() {
    Reorganizar las pestañas con el formato actual
    =================================================================== */
 
-var HOJAS_DATOS = ['Rectores', 'Docentes', 'Estudiantes'];
+var HOJAS_DATOS = ['Docentes de apoyo', 'Docentes', 'Estudiantes'];
 var MAX_COLUMNAS = 400;
 
 /**

@@ -372,3 +372,8 @@
 }
 
 #innovatea-app input[type=tel]{max-width:240px;font-variant-numeric:tabular-nums;letter-spacing:.04em}
+#innovatea-app .consent a{color:var(--brand);font-weight:700;text-decoration:underline;text-underline-offset:2px}
+
+/* Campo de texto de "Otra"/"Otras", dentro de la misma pantalla. */
+#innovatea-app .pantalla .q.q-dentro{margin-top:14px;padding:14px 16px;border:1.5px dashed var(--brand);border-radius:10px;background:color-mix(in srgb,var(--brand) 4%,var(--surface));gap:10px}
+#innovatea-app .pantalla .q.q-dentro .lab{font-family:var(--f-body);font-size:1rem;font-weight:700}
