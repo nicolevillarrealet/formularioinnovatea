@@ -26,10 +26,10 @@
  * VERIFICACIÓN POR CORREO
  *  Quien responde escribe su correo, recibe un código de 6 dígitos y lo
  *  escribe en el formulario. Este script comprueba el código y entrega un
- *  "pase" firmado con el correo, que acompaña al envío. Cada correo puede
- *  enviar UNA SOLA encuesta, de docente de apoyo o de docente: quien
- *  respondió una no puede responder la otra. La pestaña _correos lleva la
- *  cuenta.
+ *  "pase" firmado con el correo, que acompaña al envío. Cada correo
+ *  responde UN SOLO TIPO de encuesta (rector, docente de apoyo o docente),
+ *  pero puede enviarlo varias veces: por ejemplo, un docente de apoyo con
+ *  varias instituciones. La pestaña _correos lleva la cuenta.
  *
  * AUTORIZACIÓN DE DATOS
  *  Todo envío con correo verificado debe traer la autorización de
@@ -64,10 +64,11 @@
 /* ---- Límites. Nada de lo que llegue de fuera puede pasarse de aquí. ---- */
 // 'Rectores' queda solo para envíos de la versión anterior de la página.
 var HOJAS_PERMITIDAS = ['Docentes de apoyo', 'Docentes', 'Estudiantes', 'Rectores'];
-var NOMBRE_ENCUESTA = { rector: 'docente de apoyo', docente: 'docente' };
+var NOMBRE_ENCUESTA = { rector: 'rector', apoyo: 'docente de apoyo', docente: 'docente' };
 var HOJA_ENVIOS = '_envios';
 var HOJA_CORREOS = '_correos';
-var TIPOS_PERMITIDOS = ['rector', 'docente'];
+var TIPOS_PERMITIDOS = ['rector', 'apoyo', 'docente'];
+var ZONA = 'America/Bogota'; // todas las fechas de la hoja, en hora de Colombia
 var MAX_CUERPO = 300000;   // caracteres del JSON recibido
 var MAX_FILAS = 120;       // fichas de estudiante en un solo envío
 var MAX_COLUMNAS = 400;    // con una columna por opción, Docentes llega a ~80
@@ -267,13 +268,22 @@ function verificar(v) {
   return { ok: true, correo: '', como: 'sin verificación', minutos: '' };
 }
 
-/** Tipos de encuesta que este correo ya envió. */
+/** Tipos de encuesta que este correo ya envió (sin repetir). */
 function encuestasDe(correo) {
   var hoja = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(HOJA_CORREOS);
   if (!hoja || hoja.getLastRow() < 2) return [];
-  return hoja.getRange(2, 1, hoja.getLastRow() - 1, 2).getValues()
-    .filter(function (f) { return String(f[0]) === correo; })
-    .map(function (f) { return String(f[1]); });
+  var tipos = [];
+  hoja.getRange(2, 1, hoja.getLastRow() - 1, 2).getValues().forEach(function (f) {
+    if (String(f[0]) === correo && tipos.indexOf(String(f[1])) === -1) tipos.push(String(f[1]));
+  });
+  return tipos;
+}
+
+/** Fecha en hora de Colombia, como texto: "2026-11-01 21:30:05". */
+function horaColombia(fecha) {
+  var d = fecha ? new Date(fecha) : new Date();
+  if (isNaN(d.getTime())) return String(fecha || '');
+  return Utilities.formatDate(d, ZONA, 'yyyy-MM-dd HH:mm:ss');
 }
 
 /** ¿Ya se registró este envío? (un reenvío desde la cola no se duplica) */
@@ -332,11 +342,11 @@ function registrar(datos, v) {
     // Un reenvío desde la cola de un envío que ya entró no se duplica.
     if (yaRegistrado(libro, r.id)) return { ok: true, id: r.id, repetido: true };
 
-    // Una sola encuesta por correo verificado, sea de rector o de docente.
-    var previas = v.correo ? encuestasDe(v.correo) : [];
-    if (previas.length) {
-      return { ok: false, error: 'El correo ' + v.correo + ' ya envió la encuesta de ' + (NOMBRE_ENCUESTA[previas[0]] || previas[0]) +
-        '. Cada correo puede responder una sola encuesta, de docente de apoyo o de docente.' };
+    // Un solo tipo de encuesta por correo verificado (puede repetirlo).
+    var otras = (v.correo ? encuestasDe(v.correo) : []).filter(function (t) { return t !== r.tipo; });
+    if (otras.length) {
+      return { ok: false, error: 'El correo ' + v.correo + ' ya respondió la encuesta de ' + (NOMBRE_ENCUESTA[otras[0]] || otras[0]) +
+        '. Cada correo puede responder un solo tipo de encuesta; para la de ' + (NOMBRE_ENCUESTA[r.tipo] || r.tipo) + ' use un correo distinto.' };
     }
 
     // El correo lo pone el servidor a partir del pase: el que venga del
@@ -357,17 +367,17 @@ function registrar(datos, v) {
     completarEncabezados(envios, columnasEnvios);
     envios.appendRow([
       r.id,
-      String(r.enviado || '').slice(0, 40),
+      horaColombia(r.enviado),
       r.tipo,
       JSON.stringify(r).slice(0, MAX_CUERPO),
       v.como,
       v.minutos,
-      r.autorizacion && r.autorizacion.acepto ? 'SÍ · ' + String(r.autorizacion.fecha || '').slice(0, 40) : '',
+      r.autorizacion && r.autorizacion.acepto ? 'SÍ · ' + horaColombia(r.autorizacion.fecha) : '',
     ]);
 
     if (v.correo) {
       hojaConEncabezados(libro, HOJA_CORREOS, ['correo', 'tipo', 'id_envio', 'fecha'])
-        .appendRow([v.correo, r.tipo, r.id, new Date()]);
+        .appendRow([v.correo, r.tipo, r.id, horaColombia()]);
     }
 
     return { ok: true, id: r.id };
@@ -438,7 +448,7 @@ function autorizarCorreos() {
  */
 function reiniciarHojas() {
   var libro = SpreadsheetApp.getActiveSpreadsheet();
-  var sello = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH.mm');
+  var sello = Utilities.formatDate(new Date(), ZONA, 'yyyy-MM-dd HH.mm');
   var nombres = ['Rectores', 'Docentes de apoyo', 'Docentes', 'Estudiantes', HOJA_ENVIOS, HOJA_CORREOS];
   var hechas = [];
   var lock = LockService.getScriptLock();

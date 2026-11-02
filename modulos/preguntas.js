@@ -18,10 +18,16 @@
      buscar  en un select largo, muestra un buscador en vez del desplegable;
              el valor es el sustantivo plural que se lee ("municipios")
 
-   FORMULARIO 1 · DOCENTES DE APOYO (claves r…; el objeto sigue llamándose
-   RECTORES para no cambiar las claves guardadas): preguntas 1 a 18.
-   Si reporta estudiantes con TEA (6 = "Sí"), diligencia una ficha por
-   cada uno (6.1 + 6.2).
+   TRES FORMULARIOS (rol → tipo guardado → pestaña):
+     rectores → "rector"  → Rectores
+     apoyo    → "apoyo"   → Docentes de apoyo
+     docentes → "docente" → Docentes
+   Rectores y docentes de apoyo comparten las preguntas institucionales
+   (claves r…). APOYO las tiene todas (1 a 18) y, si reporta estudiantes
+   con TEA (6 = "Sí"), diligencia una ficha por cada uno (6.1 + 6.2).
+   RECTORES es una copia sin los conteos de estudiantes (matrícula, TEA,
+   sexo, edades, grados, TDAH, otras condiciones, PIAR, SIMAT, orientación
+   a valoración), renumerada (1 a 12), y NO lleva fichas.
 
    NUMERACIÓN: toda pregunta que solo aparece por una respuesta anterior
    es una subpregunta de la que la abre (6.1, 8.1, 12.1, 16.1, 17.3…),
@@ -64,8 +70,8 @@ export const ALIAS = {
   "No cuenta": "No cuenta con disponibilidad",
 };
 
-export const RECTORES={
-  key:"rectores", title:"Docentes de apoyo — Caracterización institucional y poblacional",
+export const APOYO={
+  key:"apoyo", title:"Docentes de apoyo — Caracterización institucional y poblacional",
   sections:[{title:"Datos de quien responde",qs:[
     {id:"rn",n:"A",t:"text",l:"Nombre completo"},
     {id:"rc",n:"B",t:"tel",l:"Celular de contacto",ayuda:"Su correo ya quedó registrado al verificarlo; aquí no hace falta repetirlo.",opt:true},
@@ -107,7 +113,31 @@ export const RECTORES={
   /* Las reglas de coherencia entre respuestas están en reglas.js. */
 };
 
-/* ---------- Formulario 2: Docentes ---------- */
+/* ---------- Formulario de rectores: copia del de docentes de apoyo ---------- */
+
+/* Preguntas del formulario de docentes de apoyo que NO van en el de
+   rectores, y la numeración que toma cada una de las que quedan. */
+const SIN_RECTOR = new Set(["r5", "r7", "r8", "r11", "r12", "r13", "r14", "r9", "r10", "r10c", "r16", "r17", "r18"]);
+const NUM_RECTOR = {
+  r6: 5, r19: 6, r21: "6.1", r20: 7, r22: 8, r23: 9, r24: 10, r24o: "10.1",
+  r25: 11, r26: "11.1", r27: "11.2", r27o: "11.3", r28: 12,
+};
+export const RECTORES = {
+  key: "rectores",
+  title: "Rectores — Caracterización institucional y poblacional",
+  sections: APOYO.sections.map((sec) => ({
+    ...sec,
+    qs: sec.qs.filter((q) => !SIN_RECTOR.has(q.id)).map((q) => {
+      const c = { ...q, n: q.id in NUM_RECTOR ? NUM_RECTOR[q.id] : q.n };
+      if (q.id === "r3") c.o = q.o.filter((o) => o !== "Docente de apoyo");
+      if (q.id === "r6") delete c.ayuda; // los rectores no llenan fichas
+      if (q.id === "r21") c.l = "¿Con qué disponibilidad cuenta el personal de apoyo pedagógico?";
+      return c;
+    }),
+  })),
+};
+
+/* ---------- Formulario 3: Docentes ---------- */
 export const DOC_ID={title:"Datos de quien responde",qs:[
   {id:"dn",n:"A",t:"text",l:"Nombre completo del docente"},
   {id:"dc",n:"B",t:"tel",l:"Celular de contacto",ayuda:"Su correo ya quedó registrado al verificarlo; aquí no hace falta repetirlo.",opt:true},
@@ -180,19 +210,30 @@ export const DOC_CIERRE=[
 
 /* ---------- Agrupaciones de conveniencia ---------- */
 
+/** ¿Formulario institucional (rectores o docentes de apoyo)? */
+export const esInstitucional = (rol) => rol === "rectores" || rol === "apoyo";
+
+/** Tipo que se guarda en cada envío, según el formulario. */
+export const TIPO = { rectores: "rector", apoyo: "apoyo", docentes: "docente" };
+
 /** Secciones que se responden una sola vez, según el rol. */
 export function seccionesGenerales(rol){
-  return rol === "rectores" ? RECTORES.sections : [DOC_ID, DOC_GRUPO, ...DOC_CIERRE];
+  if (rol === "rectores") return RECTORES.sections;
+  if (rol === "apoyo") return APOYO.sections;
+  return [DOC_ID, DOC_GRUPO, ...DOC_CIERRE];
 }
+
+/** Secciones según el tipo guardado en un envío. */
+export const seccionesDeTipo = (tipo) => seccionesGenerales(
+  Object.keys(TIPO).find((rol) => TIPO[rol] === tipo) || "docentes");
 
 /** Secciones que se repiten una vez por ficha de estudiante (los dos formularios). */
 export function seccionesPorEstudiante(){
   return DOC_ESTUDIANTE;
 }
 
-/** Nombre visible de cada encuesta (el valor interno sigue siendo
-    "rector"/"docente" para no romper lo ya guardado). */
-export const NOMBRE_ENCUESTA = { rector: "docente de apoyo", docente: "docente" };
+/** Nombre visible de cada encuesta, según el tipo guardado. */
+export const NOMBRE_ENCUESTA = { rector: "rector", apoyo: "docente de apoyo", docente: "docente" };
 
 /** Todas las preguntas de una lista de secciones, en orden. */
 export function preguntasDe(secciones){
@@ -201,15 +242,16 @@ export function preguntasDe(secciones){
 
 /** Índice id -> pregunta, para resolver etiquetas al exportar. */
 export const INDICE = Object.fromEntries(
-  [...preguntasDe(seccionesGenerales("rectores")),
+  [...preguntasDe(seccionesGenerales("apoyo")),
    ...preguntasDe(seccionesGenerales("docentes")),
    ...preguntasDe(DOC_ESTUDIANTE)].map((q) => [q.id, q])
 );
 
-/** Encabezado legible para la hoja de cálculo: "12. ¿Cuántos…?" */
-export function etiqueta(id){
-  const q = INDICE[id];
-  if (!q) return id;
+/** Encabezado legible para la hoja de cálculo: "12. ¿Cuántos…?".
+    Recibe la pregunta (con la numeración de su formulario) o su id. */
+export function etiqueta(q){
+  if (typeof q === "string") q = INDICE[q];
+  if (!q) return "";
   return `${q.n}. ${q.l}`;
 }
 

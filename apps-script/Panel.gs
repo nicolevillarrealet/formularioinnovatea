@@ -65,7 +65,7 @@ function listarRegistros() {
    Reorganizar las pestañas con el formato actual
    =================================================================== */
 
-var HOJAS_DATOS = ['Docentes de apoyo', 'Docentes', 'Estudiantes'];
+var HOJAS_DATOS = ['Rectores', 'Docentes de apoyo', 'Docentes', 'Estudiantes'];
 var MAX_COLUMNAS = 400;
 
 /**
@@ -85,7 +85,7 @@ function reconstruirHojas(destinos) {
   var lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
-    var sello = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm');
+    var sello = Utilities.formatDate(new Date(), 'America/Bogota', 'yyyy-MM-dd HH:mm');
     var hechas = [];
     destinos.forEach(function (d) {
       if (HOJAS_DATOS.indexOf(d.hoja) === -1) return;

@@ -12,7 +12,7 @@
         una ficha de estudiante
      c  { A, S, i, rol }  respuestas generales, todas las fichas, el índice
         de la ficha (null si la pregunta es general) y el formulario
-        ("rectores" = docentes de apoyo, "docentes")
+        ("rectores", "apoyo" o "docentes")
 
    Tipos de regla por pregunta:
      min, max  números. Devuelven { v, m }: el límite y el mensaje que se
@@ -25,7 +25,7 @@
      regla     cualquier otra condición; devuelve el mensaje o null. */
 
 import { GRADOS, EDADES } from "./catalogos.js";
-import { INDICE, TEA, TDAH } from "./preguntas.js";
+import { INDICE, TEA, TDAH, esInstitucional } from "./preguntas.js";
 
 const NA = "Información no disponible";
 const n = (a, k) => { const v = Number(a?.[k]); return Number.isFinite(v) ? v : 0; };
@@ -39,7 +39,7 @@ const celularMalo = (v) => v && !/^3\d{9}$/.test(String(v))
   ? "Escriba un celular de 10 dígitos que empiece por 3, o deje el campo vacío."
   : null;
 
-/* ---------- Docentes de apoyo (formulario 1, claves r…) ---------- */
+/* ---------- Rectores y docentes de apoyo (claves r…) ---------- */
 
 const teaApoyo = (a) => n(a, "r7") + n(a, "r8");
 const deMatricula = (a) => ({
@@ -70,7 +70,7 @@ const E23 = [TEA, TDAH, ...OTRAS_E23, "Ninguna"];
 function permitidasEnFicha(c) {
   const A = c.A;
   const p = new Set([TEA]);
-  if (c.rol === "rectores") {
+  if (esInstitucional(c.rol)) {
     if (n(A, "r9") > 0) p.add(TDAH);
     if (n(A, "r10") > 0) OTRAS_E23.forEach((o) => p.add(o));
     return p;
@@ -149,7 +149,7 @@ const R = {
   /* --- Ficha de estudiante --- */
   e10: {
     // Docentes de apoyo: la edad tiene que estar entre las marcadas en 6.5 (r13).
-    opc: (s, c) => c.rol === "rectores" ? soloLasMarcadas(c.A.r13, EDADES) : null,
+    opc: (s, c) => esInstitucional(c.rol) ? soloLasMarcadas(c.A.r13, EDADES) : null,
   },
   e11: {
     // Docentes de apoyo: el grado tiene que estar entre los marcados en 6.6 (r14).
@@ -157,7 +157,7 @@ const R = {
     // aplica porque el formulario es de básica primaria.
     opc: (s, c) => {
       const todos = ["Preescolar", ...GRADOS];
-      if (c.rol === "rectores") return soloLasMarcadas(c.A.r14, todos);
+      if (esInstitucional(c.rol)) return soloLasMarcadas(c.A.r14, todos);
       if (GRADOS.includes(c.A.d3)) return { forzar: [c.A.d3], vetar: todos.filter((g) => g !== c.A.d3) };
       return { forzar: [], vetar: ["Preescolar"] };
     },
@@ -237,13 +237,15 @@ export function errorDe(q, s, c) {
 
 /** Fichas de caracterización: una por cada estudiante con trastorno del
     espectro autista (TEA) reportado, en los dos formularios.
-    Docentes de apoyo: 6.1 + 6.2 (r7 + r8) si 6 es "Sí". Docentes: 5.1 (d6) si 5 es "Sí". */
+    Docentes de apoyo: 6.1 + 6.2 (r7 + r8) si 6 es "Sí".
+    Docentes: 5.1 (d6) si 5 es "Sí". Rectores: ninguna. */
 export function numFichas(A, rol) {
-  const total = rol === "rectores"
-    ? (si(A, "r6") ? n(A, "r7") + n(A, "r8") : 0)
-    : (si(A, "d5") ? n(A, "d6") : 0);
+  // Los rectores no llenan fichas.
+  const total = rol === "apoyo" ? (si(A, "r6") ? n(A, "r7") + n(A, "r8") : 0)
+    : rol === "docentes" ? (si(A, "d5") ? n(A, "d6") : 0)
+    : 0;
   return Math.max(0, Math.floor(total));
 }
 
 /** Pregunta(s) de donde sale el número de fichas, para los mensajes. */
-export const preguntaFichas = (rol) => rol === "rectores" ? `${P("r7")} y ${P("r8")}` : `${P("d6")}`;
+export const preguntaFichas = (rol) => esInstitucional(rol) ? `${P("r7")} y ${P("r8")}` : `${P("d6")}`;

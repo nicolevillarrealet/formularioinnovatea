@@ -1,15 +1,17 @@
 # INNOVATEA — Formulario de caracterización
 
 Encuestas de caracterización del proyecto **INNOVATEA: Voces diversas, futuros posibles**
-(Gobernación de Nariño). Dos formularios —docentes de apoyo pedagógico y docentes de básica
+(Gobernación de Nariño). Tres formularios —rectores, docentes de apoyo y docentes de básica
 primaria— que se
 incrustan en WordPress con una sola etiqueta y escriben cada respuesta en una hoja de Google
 Sheets.
 
-- **Formulario 1 · Docentes de apoyo:** 18 preguntas de caracterización institucional y
-  poblacional (en el código sigue llamándose `rectores`, y sus envíos `tipo: "rector"`, para
-  no cambiar las claves ya guardadas).
-- **Formulario 2 · Docentes de básica primaria:** 18 preguntas.
+- **Formulario 1 · Rectores** (`rol: "rectores"`, `tipo: "rector"`): 12 preguntas de
+  caracterización institucional, sin fichas. Es el de docentes de apoyo sin los conteos de
+  estudiantes (matrícula, TEA, sexo, edades, grados, TDAH, otras condiciones, PIAR, SIMAT) ni la
+  orientación a valoración.
+- **Formulario 2 · Docentes de apoyo** (`apoyo`, `tipo: "apoyo"`): 18 preguntas.
+- **Formulario 3 · Docentes de básica primaria** (`docentes`, `tipo: "docente"`): 18 preguntas.
 - **Fichas de caracterización (F1–F21):** al final de los dos formularios, una por cada
   estudiante con trastorno del espectro autista (TEA) reportado, sin nombres ni documentos.
 
@@ -20,14 +22,14 @@ Sheets.
 En la página donde va la encuesta, agregue un bloque **HTML personalizado** y pegue esto:
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@v1.5.0/main.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@v1.6.0/main.js"></script>
 ```
 
 Eso es todo. El formulario se monta justo donde esté el bloque; la etiqueta carga el
 controlador y el controlador trae por su cuenta los estilos y los demás módulos. No hace falta
 plugin, ni FTP, ni subir archivos al hosting.
 
-**Para publicar un cambio:** `git tag v1.5.1 && git push origin v1.5.1`, y cambie el número en
+**Para publicar un cambio:** `git tag v1.6.1 && git push origin v1.6.1`, y cambie el número en
 la línea de WordPress.
 
 > **Por qué una etiqueta y no `@main`.** jsDelivr le dice al navegador que guarde estos archivos
@@ -77,9 +79,11 @@ institucional). Quien decide es `Codigo.gs`, no el navegador:
    volver sin pedir otro código.
 2. Al enviar, lee el correo del pase —no el que diga el navegador— y lo escribe en la columna
    `correo_verificado`. Un pase alterado o vencido se rechaza.
-3. **Una encuesta por correo:** cada correo puede responder una sola, de docente de apoyo **o** de
-   docente. La pestaña `_correos` lleva la cuenta; si el correo ya respondió cualquiera de las
-   dos, ambas tarjetas aparecen bloqueadas desde el inicio y el servidor rechaza otro envío.
+3. **Un tipo de encuesta por correo:** cada correo responde un solo tipo (rector, docente de
+   apoyo o docente), pero puede enviarlo varias veces, por ejemplo para varias instituciones. La
+   pestaña `_correos` lleva la cuenta; las tarjetas de los otros tipos aparecen bloqueadas y el
+   servidor rechaza un envío de otro tipo. Después de enviar, la sesión sigue abierta para
+   responder otra institución; la pantalla final tiene «Cerrar sesión de este correo».
 4. **Frenos contra abuso:** un código por correo cada minuto y máximo 5 al día; máximo 300 por
    hora en total; cada código vence a los 15 minutos y admite 5 intentos. Workspace permite unos
    1 500 correos al día.
@@ -157,9 +161,10 @@ Cada envío viaja en un solo POST y se reparte en tres pestañas:
 
 | Pestaña | Una fila por | Se une con |
 |---|---|---|
+| `Rectores` | encuesta de rector | — |
 | `Docentes de apoyo` | encuesta de docente de apoyo | — |
 | `Docentes` | encuesta de docente | — |
-| `Estudiantes` | ficha de caracterización (estudiante con TEA); la columna `encuesta` dice de cuál formulario viene | `id_envio` de `Docentes de apoyo` o `Docentes` |
+| `Estudiantes` | ficha de caracterización (estudiante con TEA); la columna `encuesta` dice de cuál formulario viene | `id_envio` de `Rectores`, `Docentes de apoyo` o `Docentes` |
 | `_envios` | envío completo en JSON | uso interno del panel |
 
 Las tres primeras son las legibles: se descargan con **Archivo → Descargar → Microsoft Excel
@@ -180,10 +185,13 @@ Así se cuenta con `SUMA` o `CONTAR.SI` y se filtra directamente, sin separar te
 **Numeración.** Toda pregunta que solo aparece por una respuesta anterior es subpregunta de la
 que la abre (6.1, 8.1, 12.1, 16.1, 17.3…), incluido el texto que se pide al elegir «Otra» u
 «Otras». Así la secuencia principal nunca salta. Docentes de apoyo: 1 a 18.
-Docentes: 1 a 18. Ficha de caracterización: F1 a F21, aparte, porque se repite una vez por
+Rectores: 1 a 12. Docentes: 1 a 18. Ficha de caracterización: F1 a F21, aparte, porque se repite una vez por
 estudiante con TEA.
 
-**Autorización de datos.** Cada fila de `Docentes de apoyo` y `Docentes` lleva
+**Hora.** Todas las fechas de la hoja (`enviado`, `fecha_autorizacion`, `_envios`, `_correos`)
+van en hora de Colombia, `2026-11-01 21:30:05`. El JSON de `_envios` conserva la marca original.
+
+**Autorización de datos.** Cada fila de `Rectores`, `Docentes de apoyo` y `Docentes` lleva
 `autoriza_tratamiento_datos` (SÍ) y `fecha_autorizacion` (cuándo marcó la casilla, con enlace a
 la Política de tratamiento de datos personales de la Gobernación). `Codigo.gs` rechaza un envío
 verificado que no la traiga, y `_envios` guarda la misma constancia.

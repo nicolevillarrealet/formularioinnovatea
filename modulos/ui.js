@@ -4,7 +4,7 @@
    cuando el usuario actúa, emite un evento sobre el contenedor y main.js decide.
 
    Eventos emitidos:
-     innovatea:rol    detail = { rol }        se eligió rectores (docentes de apoyo) | docentes
+     innovatea:rol    detail = { rol }        se eligió rectores | apoyo | docentes
      innovatea:enviar detail = { rol }        se pulsó "Enviar respuestas"
 
    ESTILO WIZARD: cada pregunta es una pantalla y solo se ve una a la vez.
@@ -42,7 +42,8 @@
    formulario completo igual que antes. */
 
 import {
-  RECTORES, DOC_ID, DOC_GRUPO, DOC_ESTUDIANTE, DOC_CIERRE, INSTITUCIONES,
+  RECTORES, APOYO, DOC_ID, DOC_GRUPO, DOC_ESTUDIANTE, DOC_CIERRE, INSTITUCIONES,
+  seccionesGenerales, esInstitucional, TIPO,
 } from "./preguntas.js";
 import { conChips, limites, maxSeleccion, opcionesDe, errorDe, numFichas, preguntaFichas } from "./reglas.js";
 import { ALIAS, NOMBRE_ENCUESTA, preguntasDe } from "./preguntas.js";
@@ -56,7 +57,7 @@ const mayus = (s) => s.toLocaleUpperCase("es-CO");
 
 let raiz = null;          // contenedor #innovatea-app
 let ajustes = {};         // config recibida de main.js
-let rolActual = null;     // "rectores" (docentes de apoyo) | "docentes"
+let rolActual = null;     // "rectores" | "apoyo" | "docentes"
 let fechaAutorizacion = ""; // cuándo marcó la autorización de datos
 let A = {};               // respuestas generales
 let S = [];               // fichas de estudiante (docentes)
@@ -110,13 +111,19 @@ function plantilla() {
     <div class="acceso" id="acceso" hidden></div>
     <div class="roles">
       <button class="role" type="button" data-form="rectores">
-        <small>Formulario 1 · 18 preguntas + una ficha por estudiante con trastorno del espectro autista (TEA)</small>
-        <h3>Docentes de apoyo pedagógico</h3>
+        <small>Formulario 1 · 12 preguntas</small>
+        <h3>Rectores</h3>
+        <span>Caracterización institucional de la sede educativa: apoyos, articulación con salud, formación y necesidades.</span>
+        <span class="go">Comenzar →</span>
+      </button>
+      <button class="role" type="button" data-form="apoyo">
+        <small>Formulario 2 · 18 preguntas + una ficha por estudiante con trastorno del espectro autista (TEA)</small>
+        <h3>Docentes de apoyo</h3>
         <span>Caracterización institucional y poblacional de la sede educativa, y de cada estudiante con TEA reportado.</span>
         <span class="go">Comenzar →</span>
       </button>
       <button class="role" type="button" data-form="docentes">
-        <small>Formulario 2 · 18 preguntas + una ficha por estudiante con trastorno del espectro autista (TEA)</small>
+        <small>Formulario 3 · 18 preguntas + una ficha por estudiante con trastorno del espectro autista (TEA)</small>
         <h3>Docentes de básica primaria</h3>
         <span>Su grupo, su práctica pedagógica y formación, y la caracterización de cada estudiante con TEA de su grupo.</span>
         <span class="go">Comenzar →</span>
@@ -133,7 +140,11 @@ function plantilla() {
   <section id="thanks" class="thanks" hidden>
     <h2>¡Gracias por participar!</h2>
     <p>Su respuesta quedó registrada. La información se analizará siempre de forma agregada para orientar acciones de inclusión en Nariño.</p>
-    <div class="actions"><button class="btn" type="button" id="again">Volver al inicio</button></div>
+    <p class="hint">Si tiene a su cargo otra institución, puede volver al inicio y responder la misma encuesta para ella con el mismo correo. Si este computador es compartido, cierre su sesión al terminar.</p>
+    <div class="actions">
+      <button class="btn" type="button" id="again">Volver al inicio</button>
+      <button class="btn ghost" type="button" id="salirSesion">Cerrar sesión de este correo</button>
+    </div>
   </section>
 </div>`;
 }
@@ -163,6 +174,7 @@ function cablearInicio() {
   });
   $("#back").addEventListener("click", () => mostrar("home"));
   $("#again").addEventListener("click", () => mostrar("home"));
+  $("#salirSesion").addEventListener("click", () => { emitir("innovatea:cerrarSesion"); mostrar("home"); });
 }
 
 export function mostrar(vista) {
@@ -402,6 +414,8 @@ function selectorNumero(q, store, id, alElegir) {
 
 /** Contexto que reciben las reglas para una entrada del registro. */
 const ctx = (r) => ({ A, S, i: r.indice, rol: rolActual });
+const TITULO = { rectores: "Rectores", apoyo: "Docentes de apoyo", docentes: "Docentes" };
+
 /** Fichas que corresponden según lo reportado en este formulario. */
 const nF = () => numFichas(A, rolActual);
 
@@ -831,7 +845,7 @@ function actualizarNav() {
   // El título de arriba dice siempre en qué ficha se está.
   const fi = actual.dataset.ficha;
   $("#formTitle").textContent = fi !== undefined ? `Ficha · Estudiante ${Number(fi) + 1} de ${nF()}`
-    : rolActual === "rectores" ? "Docentes de apoyo" : "Docentes";
+    : TITULO[rolActual] || "";
 
   const intro = actual.querySelector("[data-intro-texto]");
   if (intro) intro.textContent = textoIntroFichas();
@@ -1011,10 +1025,10 @@ export function renderizarFormulario(rol, ops = {}) {
   fichasPintadas = -1;
   // Borradores de la versión anterior pudieron guardar un correo en el
   // contacto: ahora el campo es solo para el celular.
-  const contacto = rol === "rectores" ? "rc" : "dc";
+  const contacto = esInstitucional(rol) ? "rc" : "dc";
   if (A[contacto] && /\D/.test(A[contacto])) delete A[contacto];
   // Opciones renombradas o quitadas en versiones anteriores.
-  sanearBorrador(A, rol === "rectores" ? RECTORES.sections : [DOC_ID, DOC_GRUPO, ...DOC_CIERRE]);
+  sanearBorrador(A, seccionesGenerales(rol));
   S.forEach((st) => sanearBorrador(st, DOC_ESTUDIANTE));
 
   const ind = document.createElement("div");
@@ -1029,10 +1043,13 @@ export function renderizarFormulario(rol, ops = {}) {
 
   const agregar = (lista) => lista.forEach((p) => capas.append(p));
 
-  if (rol === "rectores") {
-    $("#formTitle").textContent = "Docentes de apoyo";
-    $("#formIntro").innerHTML = `<h2 class="titulo">${esc(RECTORES.title)}</h2><p class="hint">Responda con la información institucional disponible. Las cantidades se escriben en números enteros. Al final caracterice a cada estudiante con trastorno del espectro autista (TEA) reportado, sin nombres ni documentos.</p>`;
-    RECTORES.sections.forEach((s) => agregar(pantallasDeSeccion(s, A, "", "general", null)));
+  if (esInstitucional(rol)) {
+    const form = rol === "rectores" ? RECTORES : APOYO;
+    $("#formTitle").textContent = TITULO[rol];
+    $("#formIntro").innerHTML = `<h2 class="titulo">${esc(form.title)}</h2><p class="hint">${rol === "rectores"
+      ? "Responda con la información institucional disponible."
+      : "Responda con la información institucional disponible. Las cantidades se escriben en números enteros. Al final caracterice a cada estudiante con trastorno del espectro autista (TEA) reportado, sin nombres ni documentos."}</p>`;
+    form.sections.forEach((s) => agregar(pantallasDeSeccion(s, A, "", "general", null)));
   } else {
     $("#formTitle").textContent = "Docentes";
     $("#formIntro").innerHTML = `<h2 class="titulo">Encuesta para docentes</h2><p class="hint">Primero describa su grupo y responda las preguntas sobre su práctica pedagógica y su formación. Al final caracterice a cada estudiante con trastorno del espectro autista (TEA) que reportó, sin nombres ni documentos.</p>`;
@@ -1117,7 +1134,7 @@ function pantallaIntroFichas() {
 
 function textoIntroFichas() {
   const n = nF();
-  const donde = rolActual === "rectores" ? `En las preguntas ${preguntaFichas(rolActual)}` : `En la pregunta ${preguntaFichas(rolActual)}`;
+  const donde = esInstitucional(rolActual) ? `En las preguntas ${preguntaFichas(rolActual)}` : `En la pregunta ${preguntaFichas(rolActual)}`;
   return n === 1
     ? `${donde} reportó 1 estudiante con trastorno del espectro autista (TEA): diligencie su ficha.`
     : `${donde} reportó ${n} estudiantes con trastorno del espectro autista (TEA). Se crearon ${n} fichas, una por cada uno: Estudiante 1 a Estudiante ${n}.`;
@@ -1246,21 +1263,24 @@ export const autorizacion = () => ({
   politica: POLITICA_DATOS,
 });
 
-/** Cada correo responde una sola encuesta: si ya envió una (de rector o
-    de docente), se bloquean las dos tarjetas y se dice cuál envió. */
+/** Cada correo responde un solo TIPO de encuesta, pero puede enviarla
+    varias veces (por ejemplo, un docente de apoyo con varias
+    instituciones). Si el correo ya envió un tipo, solo queda habilitada
+    esa tarjeta. */
 export function marcarUsadas(tipos) {
-  const nombre = { rectores: "rector", docentes: "docente" };
   const enviadas = tipos || [];
-  const bloqueado = enviadas.length > 0;
+  const propio = enviadas[0];
   raiz.querySelectorAll("[data-form]").forEach((b) => {
-    const esta = enviadas.includes(nombre[b.dataset.form]);
-    b.classList.toggle("usada", bloqueado);
-    b.disabled = bloqueado;
-    b.querySelector(".go").textContent = !bloqueado ? "Comenzar →"
-      : esta ? "Ya enviada con este correo" : "No disponible: este correo ya respondió la otra encuesta";
+    const tipo = TIPO[b.dataset.form];
+    const bloqueada = !!propio && tipo !== propio;
+    b.classList.toggle("usada", bloqueada);
+    b.disabled = bloqueada;
+    b.querySelector(".go").textContent = bloqueada
+      ? `No disponible: este correo ya respondió la encuesta de ${NOMBRE_ENCUESTA[propio] || propio}`
+      : propio ? "Responder otra (para otra institución) →" : "Comenzar →";
   });
-  avisoInicio(bloqueado
-    ? `Este correo ya respondió la encuesta de <strong>${NOMBRE_ENCUESTA[enviadas[0]] || enviadas[0]}</strong>. Cada correo puede responder una sola encuesta, de docente de apoyo o de docente. Si necesita responder la otra, use un correo distinto.`
+  avisoInicio(propio
+    ? `Este correo ya envió ${enviadas.length === 1 ? "una encuesta" : enviadas.length + " encuestas"} de <strong>${NOMBRE_ENCUESTA[propio] || propio}</strong>. Puede responder la misma encuesta otra vez, por ejemplo para otra institución, pero no las de los otros cargos: para eso use un correo distinto.`
     : "", "info");
 }
 
@@ -1285,7 +1305,7 @@ export function bloquearEnvio(bloqueado, texto) {
    Borrador local (solo en el navegador de quien responde)
    ===================================================================== */
 
-const clave = (rol) => "innovatea-" + rol;
+const clave = (rol) => "innovatea-v3-" + rol; // v3: tres formularios
 
 /* Se guarda en el navegador y, además, en memoria: si el navegador no
    deja guardar (modo privado, página incrustada), salir al inicio y volver

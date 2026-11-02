@@ -52,7 +52,7 @@ export function montarAcceso(contenedor, config, ops) {
     contenedor.innerHTML = `
       <p class="acc-titulo">Verifique su correo para comenzar</p>
       <p class="acc-indicacion"><strong>Use su correo institucional</strong> si lo tiene. Si no tiene uno, use el correo académico que esté usando actualmente y que se encuentre vigente.</p>
-      <p class="hint">Le enviaremos un código de 6 dígitos. Cada correo puede responder una sola encuesta: la de docente de apoyo o la de docente.</p>
+      <p class="hint">Le enviaremos un código de 6 dígitos. Cada correo responde un solo tipo de encuesta (rector, docente de apoyo o docente), y puede responderla para varias instituciones.</p>
       <form class="acc-fila" novalidate>
         <label class="sr" for="accCorreo">Correo electrónico</label>
         <input type="email" id="accCorreo" autocomplete="email" inputmode="email" placeholder="nombre@correo.com" value="${esc(valor)}" required>
@@ -211,9 +211,17 @@ export function montarAcceso(contenedor, config, ops) {
   return {
     /** La sesión vigente, o null. */
     sesion: () => leer(),
-    /** Tras un envío: se anota la encuesta enviada y se cierra la sesión,
-        para que en un computador compartido la siguiente persona verifique
-        su propio correo. */
+    /** Tras un envío: se anota el tipo enviado y la sesión sigue abierta,
+        para que pueda responder otra vez la misma encuesta (por ejemplo,
+        para otra institución) sin pedir otro código. */
+    anotarEnvio(tipo) {
+      const s = leer();
+      if (!s) return;
+      if (!s.usadas.includes(tipo)) s.usadas = [...s.usadas, tipo];
+      guardar(s);
+      pasoListo(s);
+    },
+    /** Cierra la sesión: la siguiente persona verifica su propio correo. */
     cerrar() {
       guardar(null);
       contenedor.classList.remove("acc-ok");

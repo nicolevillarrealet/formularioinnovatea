@@ -26,13 +26,25 @@
      reorganizada queda uniforme aunque haya envíos de versiones viejas. */
 
 import {
-  RECTORES, DOC_ID, DOC_GRUPO, DOC_ESTUDIANTE, DOC_CIERRE,
-  preguntasDe, etiqueta, ALIAS,
+  DOC_ESTUDIANTE, preguntasDe, etiqueta, ALIAS,
+  seccionesGenerales, seccionesDeTipo, esInstitucional, TIPO,
 } from "./preguntas.js";
 import { errorDe, numFichas } from "./reglas.js";
 
-export const HOJAS = { RECTORES: "Docentes de apoyo", DOCENTES: "Docentes", ESTUDIANTES: "Estudiantes" };
-const ENCUESTA = { rector: "Docente de apoyo", docente: "Docente" };
+/* Pestaña de la hoja y nombre visible según el tipo guardado. */
+export const HOJAS = { rector: "Rectores", apoyo: "Docentes de apoyo", docente: "Docentes", ESTUDIANTES: "Estudiantes" };
+const ENCUESTA = { rector: "Rector", apoyo: "Docente de apoyo", docente: "Docente" };
+
+/** Fecha y hora de Colombia, legible en la hoja: "2026-11-01 21:30:05". */
+export function horaColombia(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d)) return String(iso);
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "America/Bogota", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+  }).format(d);
+}
 const nuevo = (v) => ALIAS[v] || v;
 
 /* Preguntas que ya viajan como metadatos y no se repiten como columna. */
@@ -100,12 +112,12 @@ function columnas(secciones) {
 }
 
 /** Encabezado de la columna de una opción en una pregunta de varias. */
-export const etiquetaOpcion = (q, o) => `${etiqueta(q.id)} [${o}]`;
+export const etiquetaOpcion = (q, o) => `${etiqueta(q)} [${o}]`;
 
 /** Escribe en la fila `f` las columnas de una pregunta: una sola, o una
     por opción (1/0) si es de varias respuestas. */
 function ponerColumnas(f, q, valor) {
-  if (q.t !== "multi") { f[etiqueta(q.id)] = celda(nuevo(valor)); return; }
+  if (q.t !== "multi") { f[etiqueta(q)] = celda(nuevo(valor)); return; }
   const marcadas = Array.isArray(valor) ? valor.map(nuevo) : null;
   q.o.forEach((o) => { f[etiquetaOpcion(q, o)] = marcadas ? (marcadas.includes(o) ? 1 : 0) : ""; });
 }
@@ -116,7 +128,7 @@ function ponerColumnas(f, q, valor) {
 
 /**
  * @param {{general:Object, estudiantes:Array}} crudos  salida de recolector.js
- * @param {"rectores"|"docentes"} rol
+ * @param {"rectores"|"apoyo"|"docentes"} rol
  * @returns {{ok:boolean, faltantes:Array, avisos:Array, mensaje:string,
  *            registro:Object, destinos:Array}}
  */
@@ -128,14 +140,9 @@ export function limpiarDatos(crudos, rol) {
 
   let errores = [];
   const general = { A: g, S: fichas, i: null, rol };
-  if (rol === "rectores") {
-    faltantes = faltantesDe(RECTORES.sections, g, "general", null);
-    errores = incoherenciasDe(RECTORES.sections, g, "general", null, general);
-  } else {
-    const secciones = [DOC_ID, DOC_GRUPO, ...DOC_CIERRE];
-    faltantes = faltantesDe(secciones, g, "general", null);
-    errores = incoherenciasDe(secciones, g, "general", null, general);
-  }
+  const secciones = seccionesGenerales(rol);
+  faltantes = faltantesDe(secciones, g, "general", null);
+  errores = incoherenciasDe(secciones, g, "general", null, general);
 
   // Fichas: solo de estudiantes con TEA, exactamente una por cada uno,
   // en los dos formularios.
@@ -163,21 +170,14 @@ export function limpiarDatos(crudos, rol) {
   /* ---- Registro anidado ---- */
   const id = identificador();
   const enviado = new Date().toISOString();
-  const registro = rol === "rectores"
-    ? {
-        id, enviado, tipo: "rector",
-        nombre: g.rn || "", contacto: g.rc || "",
-        municipio: g.r1 || "", institucion: g.r2 || "",
-        respuestas: soloVisibles(RECTORES.sections, g),
-        estudiantes: fichas.slice(0, esperadas).map((st) => soloVisibles(DOC_ESTUDIANTE, st)),
-      }
-    : {
-        id, enviado, tipo: "docente",
-        nombre: g.dn || "", contacto: g.dc || "",
-        municipio: g.d1 || "", institucion: g.d2 || "",
-        respuestas: soloVisibles([DOC_ID, DOC_GRUPO, ...DOC_CIERRE], g),
-        estudiantes: fichas.slice(0, esperadas).map((st) => soloVisibles(DOC_ESTUDIANTE, st)),
-      };
+  const inst = esInstitucional(rol);
+  const registro = {
+    id, enviado, tipo: TIPO[rol],
+    nombre: (inst ? g.rn : g.dn) || "", contacto: (inst ? g.rc : g.dc) || "",
+    municipio: (inst ? g.r1 : g.d1) || "", institucion: (inst ? g.r2 : g.d2) || "",
+    respuestas: soloVisibles(secciones, g),
+    estudiantes: fichas.slice(0, esperadas).map((st) => soloVisibles(DOC_ESTUDIANTE, st)),
+  };
 
   return { ok: true, faltantes: [], avisos, mensaje: "", registro, destinos: aFilas(registro) };
 }
@@ -189,30 +189,27 @@ export function limpiarDatos(crudos, rol) {
  */
 export function aFilas(registro) {
   const r = registro;
-  const comun = { id_envio: r.id, enviado: r.enviado, municipio: r.municipio, institucion: r.institucion,
+  // Fechas en hora de Colombia; el JSON de _envios conserva la original.
+  const comun = { id_envio: r.id, enviado: horaColombia(r.enviado), municipio: r.municipio, institucion: r.institucion,
     correo_verificado: r.correo_verificado || "" };
   // Constancia de la autorización de tratamiento de datos (Ley 1581 de 2012).
   const autorizacion = {
     autoriza_tratamiento_datos: r.autorizacion?.acepto ? "SÍ" : "",
-    fecha_autorizacion: r.autorizacion?.fecha || "",
+    fecha_autorizacion: horaColombia(r.autorizacion?.fecha),
   };
   const estudiantes = r.estudiantes || [];
+  const inst = r.tipo !== "docente";
 
-  let principal;
-  if (r.tipo === "rector") {
-    const f = { ...comun, ...autorizacion, nombre: r.nombre, contacto: r.contacto, cargo: r.respuestas.r3 || "",
-      fichas_registradas: estudiantes.length };
-    columnas(RECTORES.sections).forEach((q) => ponerColumnas(f, q, r.respuestas[q.id]));
-    principal = { hoja: HOJAS.RECTORES, encabezados: Object.keys(f), filas: [f] };
-  } else {
-    const fd = { ...comun, ...autorizacion, nombre: r.nombre, contacto: r.contacto, fichas_registradas: estudiantes.length };
-    columnas([DOC_ID, DOC_GRUPO, ...DOC_CIERRE]).forEach((q) => ponerColumnas(fd, q, r.respuestas[q.id]));
-    principal = { hoja: HOJAS.DOCENTES, encabezados: Object.keys(fd), filas: [fd] };
-  }
+  const f = { ...comun, ...autorizacion, nombre: r.nombre, contacto: r.contacto };
+  if (inst) f.cargo = r.respuestas.r3 || "";
+  f.fichas_registradas = estudiantes.length;
+  const secciones = seccionesDeTipo(r.tipo);
+  columnas(secciones).forEach((q) => ponerColumnas(f, q, r.respuestas[q.id]));
+  const principal = { hoja: HOJAS[r.tipo] || HOJAS.docente, encabezados: Object.keys(f), filas: [f] };
 
   const pregEst = columnas(DOC_ESTUDIANTE);
   const filasEst = estudiantes.map((st, i) => {
-    const fe = { ...comun, encuesta: ENCUESTA[r.tipo] || r.tipo, ficha: i + 1, docente: r.nombre,
+    const fe = { ...comun, encuesta: ENCUESTA[r.tipo] || r.tipo, ficha: i + 1, quien_responde: r.nombre,
       grado_a_cargo: r.tipo === "docente" ? (r.respuestas.d3 || "") : "" };
     pregEst.forEach((q) => ponerColumnas(fe, q, st[q.id]));
     return fe;

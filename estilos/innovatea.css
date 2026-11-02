@@ -377,3 +377,32 @@
 /* Campo de texto de "Otra"/"Otras", dentro de la misma pantalla. */
 #innovatea-app .pantalla .q.q-dentro{margin-top:14px;padding:14px 16px;border:1.5px dashed var(--brand);border-radius:10px;background:color-mix(in srgb,var(--brand) 4%,var(--surface));gap:10px}
 #innovatea-app .pantalla .q.q-dentro .lab{font-family:var(--f-body);font-size:1rem;font-weight:700}
+
+/* =====================================================================
+   Escritorio: todo alineado con el texto de la pregunta
+   En pantallas anchas el número va en su propia columna a la izquierda y
+   el enunciado, la ayuda, las opciones y las cajas empiezan en la misma
+   línea vertical. Las cajas de texto, listas y buscadores comparten un
+   mismo ancho; los números, uno más corto. En el celular no cambia nada.
+   ===================================================================== */
+@media (min-width:720px){
+  #innovatea-app .pantalla .q{position:relative;padding-left:4.2rem;max-width:calc(4.2rem + 760px)}
+  #innovatea-app .pantalla .q > .lab,
+  #innovatea-app .pantalla .q > legend{display:block}
+  #innovatea-app .pantalla .q > .lab .n,
+  #innovatea-app .pantalla .q > legend .n{position:absolute;left:0;top:6px;min-width:3.6rem}
+  #innovatea-app .pantalla .q > .lab > span:not(.n),
+  #innovatea-app .pantalla .q > legend > span:not(.n){display:block}
+  #innovatea-app .pantalla-sec,
+  #innovatea-app .pantalla-hint{padding-left:4.2rem}
+  #innovatea-app .pantalla .q input[type=text],
+  #innovatea-app .pantalla .q input[type=email],
+  #innovatea-app .pantalla .q select,
+  #innovatea-app .pantalla .q textarea,
+  #innovatea-app .pantalla .q .largo,
+  #innovatea-app .pantalla .q .buscador,
+  #innovatea-app .pantalla .q .busc-elegido{width:100%;max-width:760px}
+  #innovatea-app .pantalla .q input[type=number],
+  #innovatea-app .pantalla .q input[type=tel]{width:100%;max-width:260px}
+  #innovatea-app .pantalla .q .q-ayuda{margin-top:6px}
+}

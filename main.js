@@ -2,7 +2,7 @@
    desde WordPress:
 
      <script type="module"
-       src="https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@v1.5.0/main.js"></script>
+       src="https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@v1.6.0/main.js"></script>
 
    Su trabajo es coordinar los módulos, no contener lógica propia:
      ui.js           dibuja y avisa cuando el usuario actúa
@@ -121,8 +121,9 @@ async function alEnviar(rol) {
   try {
     const envio = await enviarASheets(resultado.registro, resultado.destinos, config, verificacion);
     ui.limpiarBorrador(rol);
-    // En un computador compartido, la siguiente persona verifica su propio correo.
-    if (acceso) acceso.cerrar();
+    // La sesión sigue abierta para responder otra vez (otra institución);
+    // en la pantalla final está el botón para cerrarla.
+    if (acceso) acceso.anotarEnvio(resultado.registro.tipo);
     if (envio.ok) {
       ui.finalizar();
     } else {
@@ -157,6 +158,7 @@ function iniciar() {
     ui.renderizarFormulario(e.detail.rol, { correo: sesion ? sesion.correo : "" });
   });
   raiz.addEventListener("innovatea:enviar", (e) => alEnviar(e.detail.rol));
+  raiz.addEventListener("innovatea:cerrarSesion", () => { if (acceso) acceso.cerrar(); });
 
   if (conCorreo) verificacionCorreo();
 
