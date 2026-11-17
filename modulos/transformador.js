@@ -118,6 +118,9 @@ export const etiquetaOpcion = (q, o) => `${etiqueta(q)} [${o}]`;
     por opción (1/0) si es de varias respuestas. */
 function ponerColumnas(f, q, valor) {
   if (q.t !== "multi") { f[etiqueta(q)] = celda(nuevo(valor)); return; }
+  // Una respuesta guardada cuando la pregunta era de una sola opción (p. ej.,
+  // la dificultad de acceso a salud) se trata como una lista de una.
+  if (typeof valor === "string") valor = [valor];
   const marcadas = Array.isArray(valor) ? valor.map(nuevo) : null;
   q.o.forEach((o) => { f[etiquetaOpcion(q, o)] = marcadas ? (marcadas.includes(o) ? 1 : 0) : ""; });
 }

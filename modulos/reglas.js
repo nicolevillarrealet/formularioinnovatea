@@ -153,12 +153,12 @@ const R = {
   },
   e11: {
     // Docentes de apoyo: el grado tiene que estar entre los marcados en 6.6 (r14).
-    // Docentes: si tiene un solo grado a cargo (d3), es ese («Transición» en
-    // la pregunta 3 es «Preescolar» en la ficha). Con varios grados, cualquiera.
+    // Docentes: si tiene un solo grado a cargo (d3), es ese. Con varios
+    // grados, cualquiera.
     opc: (s, c) => {
-      const todos = ["Preescolar", ...GRADOS];
+      const todos = ["Preescolar", "Transición", ...GRADOS];
       if (esInstitucional(c.rol)) return soloLasMarcadas(c.A.r14, todos);
-      const g = c.A.d3 === "Transición" ? "Preescolar" : c.A.d3;
+      const g = c.A.d3;
       if (todos.includes(g)) return { forzar: [g], vetar: todos.filter((x) => x !== g) };
       return null;
     },

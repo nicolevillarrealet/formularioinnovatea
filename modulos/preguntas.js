@@ -57,10 +57,10 @@ const masDe0 = (k) => (a) => typeof a[k] === "number" && a[k] > 0;
 export const TEA = "Trastorno del espectro autista (TEA)";
 export const TDAH = "Trastorno por déficit de atención e hiperactividad (TDAH)";
 const PIAR = "Plan Individual de Ajustes Razonables (PIAR)";
-const GRADOS_APOYO = ["Preescolar", ...GRADOS];
-/* Grado a cargo (docentes 3 y docentes de apoyo 5.1). «Transición» es el
-   grado de preescolar; en la ficha (F3) y en la 6.6 se llama «Preescolar». */
-const GRADO_A_CARGO = ["Transición", ...GRADOS, "Varios grados"];
+/* Grados: los mismos en la 6.6, la ficha (F3) y el grado a cargo
+   (docentes 3 y docentes de apoyo 5.1). */
+const GRADOS_APOYO = ["Preescolar", "Transición", ...GRADOS];
+const GRADO_A_CARGO = [...GRADOS_APOYO, "Varios grados"];
 
 /** Opciones que cambiaron de nombre: las respuestas guardadas con el
     nombre anterior se leen con el nuevo (borradores y hoja reorganizada). */
@@ -81,8 +81,8 @@ export const APOYO={
   ]},{title:"Parte 1. La institución educativa", qs:[
     {id:"r1",n:1,t:"select",l:"¿En qué municipio se encuentra la institución educativa?",o:MUNICIPIOS,buscar:"municipios"},
     {id:"r2",n:2,t:"inst",l:"¿Cuál es la institución educativa?",dep:"r1"},
-    {id:"r3",n:3,t:"radio",l:"¿Cuál es su cargo?",o:["Docente de apoyo","Rector","Director rural","Coordinador","Otro directivo autorizado"]},
-    {id:"r4",n:4,t:"radio",l:"¿Cuál es la zona de cobertura de la institución educativa?",o:["Urbana","Rural"]},
+    {id:"r3",n:3,t:"radio",l:"¿Cuál es su cargo?",o:["Docente de apoyo","Orientador escolar","Rector","Director rural","Coordinador","Otro directivo autorizado"]},
+    {id:"r4",n:4,t:"radio",l:"¿Cuál es la zona de cobertura de la institución educativa?",o:["Urbana","Rural","Ambas"]},
     {id:"r5",n:5,t:"num",l:"¿Cuántos estudiantes están matriculados en básica primaria?"},
     {id:"r5g",n:"5.1",t:"radio",l:"¿Qué grado tiene a cargo?",o:GRADO_A_CARGO},
   ]},{title:"Parte 2. Población estudiantil", qs:[
@@ -105,8 +105,8 @@ export const APOYO={
     {id:"r20",n:13,t:"radio",l:"¿La institución cuenta con orientador escolar?",o:SN},
     {id:"r22",n:14,t:"multi",l:"¿Qué materiales o tecnologías de apoyo están disponibles?",o:["Apoyos visuales","Comunicación aumentativa o alternativa","Recursos digitales","Material sensorial","Material adaptado","Ninguno"],x:"Ninguno"},
     {id:"r23",n:15,t:"radio",l:"¿Existe una ruta institucional de orientación y remisión hacia servicios de salud?",o:["Sí","No","En construcción"]},
-    {id:"r24",n:16,t:"radio",l:"¿Cuál es la principal dificultad de acceso a valoración en salud que conoce la institución?",o:["Distancia","Costos","Falta de especialistas","Trámites con la Entidad Promotora de Salud (EPS)","Desconocimiento","No sabe","Otra"]},
-    {id:"r24o",n:"16.1",t:"text",l:"Describa cuál es la otra dificultad de acceso a valoración en salud que conoce.",show:(a)=>a.r24==="Otra"},
+    {id:"r24",n:16,t:"multi",l:"¿Cuáles son las principales dificultades de acceso a valoración en salud que conoce la institución?",x:"No sabe",o:["Distancia","Costos","Falta de especialistas","Trámites con la Entidad Promotora de Salud (EPS)","Desconocimiento","No sabe","Otra"]},
+    {id:"r24o",n:"16.1",t:"text",l:"Describa cuál es la otra dificultad de acceso a valoración en salud que conoce.",show:(a)=>[].concat(a.r24||[]).includes("Otra")},
   ]},{title:"Parte 4. Formación y necesidades institucionales", qs:[
     {id:"r25",n:17,t:"radio",l:"¿La institución ha desarrollado capacitaciones sobre trastorno del espectro autista (TEA) o neurodivergencias durante el año lectivo?",o:SNS},
     {id:"r26",n:"17.1",t:"radio",l:"¿Cuántas capacitaciones se han desarrollado?",o:["1","2","3","4","5 o más"],show:yes("r25")},
@@ -133,7 +133,7 @@ export const RECTORES = {
     ...sec,
     qs: sec.qs.filter((q) => !SIN_RECTOR.has(q.id)).map((q) => {
       const c = { ...q, n: q.id in NUM_RECTOR ? NUM_RECTOR[q.id] : q.n };
-      if (q.id === "r3") c.o = q.o.filter((o) => o !== "Docente de apoyo");
+      if (q.id === "r3") c.o = q.o.filter((o) => o !== "Docente de apoyo" && o !== "Orientador escolar");
       if (q.id === "r6") delete c.ayuda; // los rectores no llenan fichas
       if (q.id === "r21") c.l = "¿Con qué disponibilidad cuenta el personal de apoyo pedagógico?";
       return c;
