@@ -210,7 +210,7 @@ export function aFilas(registro) {
   const pregEst = columnas(DOC_ESTUDIANTE);
   const filasEst = estudiantes.map((st, i) => {
     const fe = { ...comun, encuesta: ENCUESTA[r.tipo] || r.tipo, ficha: i + 1, quien_responde: r.nombre,
-      grado_a_cargo: r.tipo === "docente" ? (r.respuestas.d3 || "") : "" };
+      grado_a_cargo: r.tipo === "docente" ? (r.respuestas.d3 || "") : r.tipo === "apoyo" ? (r.respuestas.r5g || "") : "" };
     pregEst.forEach((q) => ponerColumnas(fe, q, st[q.id]));
     return fe;
   });

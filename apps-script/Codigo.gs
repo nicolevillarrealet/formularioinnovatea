@@ -444,7 +444,8 @@ function autorizarCorreos() {
  * ("respaldo 2026-11-01 Docentes") y se oculta. Las pestañas nuevas las
  * crea el formulario solo, con los encabezados vigentes, en el primer
  * envío. Al reiniciar _correos, los correos de prueba pueden volver a
- * responder.
+ * responder. Deja visible una pestaña «Inicio», porque Google no permite
+ * ocultar todas. Se puede volver a ejecutar sin problema.
  */
 function reiniciarHojas() {
   var libro = SpreadsheetApp.getActiveSpreadsheet();
@@ -454,6 +455,10 @@ function reiniciarHojas() {
   var lock = LockService.getScriptLock();
   lock.waitLock(30000); // que no entre un envío mientras se renombra
   try {
+    // Google exige al menos una pestaña visible: se deja «Inicio».
+    var inicio = libro.getSheetByName('Inicio') || libro.insertSheet('Inicio', 0);
+    inicio.showSheet();
+    inicio.getRange('A1').setValue('Hoja de respuestas INNOVATEA. Las pestañas de datos se crean solas con el primer envío.');
     nombres.forEach(function (n) {
       var hoja = libro.getSheetByName(n);
       if (!hoja) return;

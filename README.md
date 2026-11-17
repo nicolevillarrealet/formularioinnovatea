@@ -22,7 +22,7 @@ Sheets.
 En la página donde va la encuesta, agregue un bloque **HTML personalizado** y pegue esto:
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@v1.6.0/main.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/gh/transformaciondigital2026/formularioinnovatea@v1.6.1/main.js"></script>
 ```
 
 Eso es todo. El formulario se monta justo donde esté el bloque; la etiqueta carga el

@@ -153,13 +153,14 @@ const R = {
   },
   e11: {
     // Docentes de apoyo: el grado tiene que estar entre los marcados en 6.6 (r14).
-    // Docentes: si tiene un solo grado a cargo (d3), es ese; preescolar no
-    // aplica porque el formulario es de básica primaria.
+    // Docentes: si tiene un solo grado a cargo (d3), es ese («Transición» en
+    // la pregunta 3 es «Preescolar» en la ficha). Con varios grados, cualquiera.
     opc: (s, c) => {
       const todos = ["Preescolar", ...GRADOS];
       if (esInstitucional(c.rol)) return soloLasMarcadas(c.A.r14, todos);
-      if (GRADOS.includes(c.A.d3)) return { forzar: [c.A.d3], vetar: todos.filter((g) => g !== c.A.d3) };
-      return { forzar: [], vetar: ["Preescolar"] };
+      const g = c.A.d3 === "Transición" ? "Preescolar" : c.A.d3;
+      if (todos.includes(g)) return { forzar: [g], vetar: todos.filter((x) => x !== g) };
+      return null;
     },
   },
   e20: {

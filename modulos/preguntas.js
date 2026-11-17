@@ -58,6 +58,9 @@ export const TEA = "Trastorno del espectro autista (TEA)";
 export const TDAH = "Trastorno por déficit de atención e hiperactividad (TDAH)";
 const PIAR = "Plan Individual de Ajustes Razonables (PIAR)";
 const GRADOS_APOYO = ["Preescolar", ...GRADOS];
+/* Grado a cargo (docentes 3 y docentes de apoyo 5.1). «Transición» es el
+   grado de preescolar; en la ficha (F3) y en la 6.6 se llama «Preescolar». */
+const GRADO_A_CARGO = ["Transición", ...GRADOS, "Varios grados"];
 
 /** Opciones que cambiaron de nombre: las respuestas guardadas con el
     nombre anterior se leen con el nuevo (borradores y hoja reorganizada). */
@@ -81,6 +84,7 @@ export const APOYO={
     {id:"r3",n:3,t:"radio",l:"¿Cuál es su cargo?",o:["Docente de apoyo","Rector","Director rural","Coordinador","Otro directivo autorizado"]},
     {id:"r4",n:4,t:"radio",l:"¿Cuál es la zona de cobertura de la institución educativa?",o:["Urbana","Rural"]},
     {id:"r5",n:5,t:"num",l:"¿Cuántos estudiantes están matriculados en básica primaria?"},
+    {id:"r5g",n:"5.1",t:"radio",l:"¿Qué grado tiene a cargo?",o:GRADO_A_CARGO},
   ]},{title:"Parte 2. Población estudiantil", qs:[
     {id:"r6",n:6,t:"radio",l:"¿La institución tiene estudiantes con diagnóstico de trastorno del espectro autista (TEA) reportado?",o:["Sí","No","Información no disponible"],ayuda:"Si responde «Sí», al final de la encuesta diligenciará una ficha de caracterización por cada uno de esos estudiantes."},
     {id:"r7",n:"6.1",t:"num",l:"¿Cuántos estudiantes tienen diagnóstico de trastorno del espectro autista (TEA) con soporte documental disponible?",show:yes("r6")},
@@ -117,7 +121,7 @@ export const APOYO={
 
 /* Preguntas del formulario de docentes de apoyo que NO van en el de
    rectores, y la numeración que toma cada una de las que quedan. */
-const SIN_RECTOR = new Set(["r5", "r7", "r8", "r11", "r12", "r13", "r14", "r9", "r10", "r10c", "r16", "r17", "r18"]);
+const SIN_RECTOR = new Set(["r5", "r5g", "r7", "r8", "r11", "r12", "r13", "r14", "r9", "r10", "r10c", "r16", "r17", "r18"]);
 const NUM_RECTOR = {
   r6: 5, r19: 6, r21: "6.1", r20: 7, r22: 8, r23: 9, r24: 10, r24o: "10.1",
   r25: 11, r26: "11.1", r27: "11.2", r27o: "11.3", r28: 12,
@@ -145,7 +149,8 @@ export const DOC_ID={title:"Datos de quien responde",qs:[
 export const DOC_GRUPO={title:"Sección 1. Identificación de la institución educativa y del docente", qs:[
   {id:"d1",n:1,t:"select",l:"¿En qué municipio se encuentra la institución educativa?",o:MUNICIPIOS,buscar:"municipios"},
   {id:"d2",n:2,t:"inst",l:"¿A qué institución educativa pertenece?",dep:"d1"},
-  {id:"d3",n:3,t:"radio",l:"¿Qué grado de básica primaria tiene a cargo?",o:[...GRADOS,"Varios grados"]},
+  // col: la columna de la hoja conserva el nombre con que se publicó.
+  {id:"d3",n:3,t:"radio",l:"¿Qué grado tiene a cargo?",o:GRADO_A_CARGO,col:"3. ¿Qué grado de básica primaria tiene a cargo?"},
   {id:"d4",n:4,t:"num",l:"¿Cuántos estudiantes tiene a cargo?"},
   {id:"d5",n:5,t:"radio",l:"¿Tiene estudiantes con diagnóstico de trastorno del espectro autista (TEA) reportado en su grupo?",o:SNS,ayuda:"Si responde «Sí», al final de la encuesta diligenciará una ficha de caracterización por cada uno de esos estudiantes."},
   {id:"d6",n:"5.1",t:"num",l:"¿Cuántos estudiantes con trastorno del espectro autista (TEA) reportado tiene en su grupo?",show:yes("d5")},
@@ -252,7 +257,7 @@ export const INDICE = Object.fromEntries(
 export function etiqueta(q){
   if (typeof q === "string") q = INDICE[q];
   if (!q) return "";
-  return `${q.n}. ${q.l}`;
+  return q.col || `${q.n}. ${q.l}`;
 }
 
 export { INSTITUCIONES, MUNICIPIOS };
